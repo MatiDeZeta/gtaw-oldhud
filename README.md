@@ -19,6 +19,13 @@
 
 > [**ⓘ**](#security) **Security:** the plugin only *listens*. It hooks nothing, patches nothing, calls no game native, never sends a message and opens exactly one socket — to `127.0.0.1`.
 
+<p align="center">
+  <a href="docs/screenshots/vehicle.jpg"><img src="docs/screenshots/vehicle.jpg" alt="The old HUD drawn by the plugin: cash and bank top right, speed, fuel bar and mileage beside the minimap, the server line along the bottom" width="100%"></a>
+</p>
+
+<details>
+<summary><strong>Layout, as the old HUD drew it</strong></summary>
+
 ```
                                                                               $600
                                                                          $118,264
@@ -34,6 +41,8 @@
 
            GTA.WORLD — Roleplay v1.8.8a — 188/1500 — 14:07
 ```
+
+</details>
 
 ---
 
@@ -115,6 +124,29 @@ flowchart TD
 ```
 
 </details>
+
+---
+
+## In game
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/els.jpg"><img src="docs/screenshots/els.jpg" alt="ELS state shown on the right while stationary in a patrol car"></a></td>
+    <td width="50%"><a href="docs/screenshots/aircraft.jpg"><img src="docs/screenshots/aircraft.jpg" alt="Aviation line with altitude and heading in a helicopter"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>ELS</b> — the state appears on a change and goes away five seconds later</sub></td>
+    <td align="center"><sub><b>Aircraft</b> — <code>ALT / HDG</code> above the speed, with <code>ATC: ONLINE</code> when it is</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/interior.jpg"><img src="docs/screenshots/interior.jpg" alt="Inside a property the interior name replaces the location block"></a></td>
+    <td width="50%"><a href="docs/screenshots/admin-duty.jpg"><img src="docs/screenshots/admin-duty.jpg" alt="Admin-Duty drawn in green under the balances"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Interiors</b> — the property name takes the place of the whole location block</sub></td>
+    <td align="center"><sub><b>On duty</b> — <code>Admin-Duty</code> / <code>Tester-Duty</code> under the balances, fully opaque like the original</sub></td>
+  </tr>
+</table>
 
 ---
 
