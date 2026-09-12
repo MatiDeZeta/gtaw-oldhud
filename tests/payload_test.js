@@ -148,6 +148,9 @@ install(CFG);
 post({ action: 'NUI::Speedometer::Show' });
 flush();
 check('nothing in an ordinary vehicle', line('els').style.display, 'none');
+check('the label sits 0.18 above the minimap, in line with the balances',
+      px(line('els').style.top),
+      px(0.985 * H - 0.18 * H + 0.4123 * cap0(0.6) - (cap0(0.6) / 0.711) * 0.1305));
 post({ action: 'NUI::Speedometer::State', data: { elsVisible: true, elsCode: 1 } });
 flush();
 check('the label', text('els'), 'ELS');
@@ -189,6 +192,22 @@ flush();
 check('an update that changes nothing does not revive it', line('els').style.display, 'none');
 dom.resetClock();
 
+section('getting into a vehicle starts from a clean reading, as it does in the current HUD');
+install(Object.assign({}, CFG, { elsHoldMs: 0 }));
+post({ action: 'NUI::Speedometer::Show' });
+post({ action: 'NUI::Speedometer::State',
+       data: { speed: 60, elsVisible: true, elsCode: 3, isPlane: true, altitude: 900, heading: 90 } });
+flush();
+check('ELS up in the patrol car', line('els').style.display, '');
+post({ action: 'NUI::Speedometer::Hide' });
+post({ action: 'NUI::Speedometer::Show' });
+flush();
+check('not in the next car', line('els').style.display, 'none');
+check('nor its speed', text('speed'), 'MPH 0');
+check('nor its altitude and heading', text('avi'), 'ALT: 0 ft. / HDG: 0');
+check('a Show that carries a state applies it', (post({ action: 'NUI::Speedometer::Show',
+      data: { speed: 12 } }), flush(), text('speed')), 'MPH 12');
+
 section('the aviation line');
 install(CFG);
 post({ action: 'NUI::Speedometer::Show' });
@@ -205,6 +224,12 @@ post({ action: 'NUI::Speedometer::State', data: { atcOnline: true } });
 flush();
 check('with ATC', text('avi'), 'ALT: 412 ft. / HDG: 271 / ATC: ONLINE');
 check('ONLINE is green', line('avi').childNodes[5].className, 'ohud-g');
+post({ action: 'NUI::Speedometer::State', data: { heading: -45.2 } });
+flush();
+check('a heading is a bearing: negative wraps', text('avi'), 'ALT: 412 ft. / HDG: 315 / ATC: ONLINE');
+post({ action: 'NUI::Speedometer::State', data: { heading: 360 } });
+flush();
+check('and a full turn is north', text('avi'), 'ALT: 412 ft. / HDG: 0 / ATC: ONLINE');
 
 section('HUD::SET_STATE merges, it does not replace');
 post({ action: 'HUD::SET_STATE', data: { cash: 250 } });
@@ -280,6 +305,21 @@ flush();
 check('a real zero', text('cash'), '$0');
 body.appendChild(cashSlot); body.appendChild(bankSlot);
 
+section('the balances on screen are read whatever the locale wrote between the digits');
+// The current HUD formats with toLocaleString(), which is the client's locale, not ours.
+const cashVal = cashSlot.childNodes[0], bankVal = bankSlot.childNodes[0];
+cashVal.textContent = '$1.234.567';    // es
+bankVal.textContent = '$1\u202f234\u00a0567';  // fr
+install(CFG);
+flush();
+check('a dotted thousands separator', text('cash'), '$1,234,567');
+check('a spaced one',                 text('bank'), '$1,234,567');
+cashVal.textContent = '$-250';
+install(CFG);
+flush();
+check('a negative balance', text('cash'), '$-250');
+cashVal.textContent = '$190'; bankVal.textContent = '$189,256';
+
 section('placement against the minimap');
 install(CFG);
 flush();
@@ -322,12 +362,45 @@ post({ action: 'NUI::Hud::ToggleBigmap', data: { active: false } });
 flush();
 
 section('balances and the server line are placed against the screen');
-// Below 1920 wide the old HUD used the real screen size, so the inset is a flat 70px.
-check('balances are centred 70px in', px(line('cash').style.left), W - 70);
+// 70px in from the right and 35px up from the bottom at 1920 by 1080, scaling with the screen
+// the way the game's own text coordinates do.
+check('balances are centred 70/1920 of the width in', px(line('cash').style.left), px(W * (1 - 70 / 1920)));
 check('cash at 0.060 down', px(line('cash').style.top), px(0.060 * H + 0.4123 * cap(0.8) - (cap(0.8) / 0.711) * 0.1305));
 check('bank at 0.100 down', px(line('bank').style.top), px(0.100 * H + 0.4123 * cap(0.7) - (cap(0.7) / 0.711) * 0.1305));
 check('the server line is centred', px(line('footer').style.left), W / 2);
-check('35px up',  px(line('footer').style.top), px(H - 35 + 0.4123 * cap(0.45) - (cap(0.45) / 0.711) * 0.1305));
+check('35/1080 of the height up',  px(line('footer').style.top), px(H * (1 - 35 / 1080) + 0.4123 * cap(0.45) - (cap(0.45) / 0.711) * 0.1305));
+
+section('the game\'s nudge moves the whole HUD, as it does the current one');
+post({ action: 'NUI::Hud::Offset', data: { x: 0.1, y: -0.02 } });
+flush();
+check('the root is translated', root().style.transform, 'translate(10vw,-2vh)');
+check('the balances keep their own place inside it', px(line('cash').style.left), px(W * (1 - 70 / 1920)));
+post({ action: 'NUI::Hud::Offset', data: { x: 0, y: 0 } });
+flush();
+check('and back', root().style.transform, '');
+
+section('a minimap reported flush with the bottom of the screen does not push the block off it');
+// At the default safe zone the game's rectangle runs to the bottom edge, while the old HUD's
+// anchor sat at 0.985 of the height. The anchor never goes below that.
+post({ action: 'NUI::Hud::RadarRect',
+       data: { left: 0, top: H - 190, width: 270, height: 190, screenW: W, screenH: H } });
+flush();
+const floor = 0.985 * H;
+check('the compass letter is measured from the floor',
+      px(line('card').style.top), px(floor - 0.046 * H + 0.4123 * cap(1.0) - (cap(1.0) / 0.711) * 0.1305));
+check('so is the street',
+      px(line('street').style.top), px(floor - 0.016 * H + 0.4123 * cap(0.4) - (cap(0.4) / 0.711) * 0.1305));
+check('and it ends above the bottom edge',
+      parseFloat(line('street').style.top) + parseFloat(line('street').style.fontSize) < H, true);
+check('the ELS state is measured from it too',
+      px(line('els').style.top), px(floor - 0.18 * H + 0.4123 * cap(0.6) - (cap(0.6) / 0.711) * 0.1305));
+check('the right edge is still the rectangle\'s', px(line('speed').style.left), px(270 * 1.029 + 0.006 * W));
+// A minimap that really does sit higher is followed.
+post({ action: 'NUI::Hud::RadarRect',
+       data: { left: 0, top: 700, width: 270, height: 150, screenW: W, screenH: H } });
+flush();
+check('a higher minimap is followed',
+      px(line('card').style.top), px(850 - 0.046 * H + 0.4123 * cap(1.0) - (cap(1.0) / 0.711) * 0.1305));
 
 section('a nonsense rectangle falls back to the compass again');
 post({ action: 'NUI::Hud::RadarRect', data: { left: 0, top: 0, width: 0, height: 0 } });
@@ -404,6 +477,76 @@ post({ action: 'NUI::Hud::InactiveFade', data: { opaque: true, ms: 400 } });
 flush();
 check('faded back in', root().style.opacity, '1');
 
+section('the layout editor: what /hudlayout does to the current HUD is done to the old one too');
+const hudBody = widget('hudBody');
+for (const w of [cashSlot, bankSlot, locBar, compass, brand]) hudBody.appendChild(w);
+install(CFG);
+post({ action: 'HUD::SET_STATE', data: { cardinal: 'N', zone: 'Davis', street: 'Grove Street',
+                                          propertyName: null } });
+flush();
+const hideStyle = () => document.getElementById('gtaw-oldhud-hide');
+check('the hide rules are their own stylesheet', hideStyle() !== null, true);
+check('and are on', !hideStyle().disabled, true);
+const cashLeft0 = px(line('cash').style.left), cardLeft0 = px(line('card').style.left);
+
+// The editor opens: its toolbar appears on the page.
+const editor = widget('hle-root');
+dom.mutate(editor); flush();
+check('the current widgets are shown again to be dragged', hideStyle().disabled, true);
+
+// The cash chip is dragged and enlarged; the location bar moved; the compass moved too.
+cashSlot.style.transform = 'translate(12px, -30px) scale(1.25)';
+locBar.style.transform   = 'translate(-8px, 5px) scale(1)';
+compass.style.transform  = 'translate(20px, 0px) scale(1.5)';
+compass._rect = { left: 315.2 + 20, top: 900, width: 54 * 1.5, height: 40 };
+dom.mutate(cashSlot); flush();
+check('the old cash figure follows the chip', px(line('cash').style.left), px(cashLeft0 + 12));
+check('down by the same amount', px(line('cash').style.top),
+      px(0.060 * H - 30 + 0.4123 * cap(0.8 * 1.25) - (cap(0.8 * 1.25) / 0.711) * 0.1305));
+check('and is drawn that much bigger', px(line('cash').style.fontSize), px(cap(0.8 * 1.25) / 0.711));
+check('the bank chip was not touched', px(line('bank').style.left), px(cashLeft0));
+check('the street follows the location bar', px(line('street').style.left), px(cardLeft0 - 0.025 * W + 0.045 * W - 8));
+check('the compass letter follows the compass', px(line('card').style.left), px(cardLeft0 + 20));
+check('the moved, enlarged compass still says where the minimap is',
+      px(line('speed').style.left), px(299 + 0.006 * W));
+
+// A widget hidden in the editor is gone from the page while the rest of the HUD is there.
+hudBody.removeChild(brand);
+dom.mutate(hudBody); flush();
+check('the server line goes with the brand block', line('footer').style.display, 'none');
+hudBody.appendChild(brand);
+dom.mutate(hudBody); flush();
+check('and comes back with it', line('footer').style.display, '');
+
+// The editor closes: the toolbar goes.
+body.removeChild(editor);
+dom.mutate(body); flush();
+check('the current widgets are transparent again', hideStyle().disabled, false);
+check('the layout it saved still applies', px(line('cash').style.left), px(cashLeft0 + 12));
+
+// Mutations inside the old HUD itself are not re-read.
+const reads = dom.observers.length;
+dom.mutate(line('cash'));
+check('the observer is still the one', dom.observers.length, reads);
+
+// The big map takes the compass and the location down without hiding them.
+hudBody.removeChild(compass); hudBody.removeChild(locBar);
+post({ action: 'NUI::Hud::ToggleBigmap', data: { active: true } });
+post({ action: 'NUI::Hud::RadarRect',
+       data: { left: 20, top: 725, width: 325, height: 155, screenW: W, screenH: H } });
+dom.mutate(hudBody); flush();
+check('the street stays up under the big map', line('street').style.display, '');
+post({ action: 'NUI::Hud::ToggleBigmap', data: { active: false } });
+dom.mutate(hudBody); flush();
+check('and is hidden once the big map closes with the bar still gone', line('street').style.display, 'none');
+hudBody.appendChild(compass); hudBody.appendChild(locBar);
+cashSlot.style.transform = ''; locBar.style.transform = ''; compass.style.transform = '';
+compass._rect = { left: 315.2, top: 900, width: 54, height: 40 };
+for (const w of [cashSlot, bankSlot, locBar, compass, brand]) body.appendChild(w);
+body.removeChild(hudBody);
+install(CFG);
+flush();
+
 section('alive() repairs a HUD that was removed from the page');
 const api = window.__gtawOldHud;
 body.removeChild(root());
@@ -416,6 +559,8 @@ section('destroy() leaves nothing behind');
 api.destroy();
 check('root removed',   document.getElementById('gtaw-oldhud-root'), 'null');
 check('style removed',  document.getElementById('gtaw-oldhud-style'), 'null');
+check('hide rules removed', document.getElementById('gtaw-oldhud-hide'), 'null');
+check('observer disconnected', dom.observers.length, 0);
 check('global removed', window.__gtawOldHud, 'undefined');
 check('message listener removed', (dom.listeners.message || []).length, 0);
 check('resize listener removed',  (dom.listeners.resize  || []).length, 0);

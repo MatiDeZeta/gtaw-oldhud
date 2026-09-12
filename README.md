@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.0-8b5cf6?style=flat-square" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.1-8b5cf6?style=flat-square" alt="Version"></a>
   <a href="https://github.com/MatiDeZeta/gtaw-oldhud/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/MatiDeZeta/gtaw-oldhud/build.yml?style=flat-square&label=build" alt="Build"></a>
   <a href="https://github.com/MatiDeZeta/gtaw-oldhud/releases/latest"><img src="https://img.shields.io/github/downloads/MatiDeZeta/gtaw-oldhud/total?style=flat-square&color=22c55e" alt="Downloads"></a>
   <a href="https://fivem.net/"><img src="https://img.shields.io/badge/FiveM-.asi_plugin-f40552?style=flat-square" alt="FiveM"></a>
@@ -78,6 +78,7 @@ GTA World replaced its HUD. Some of us preferred the old one — the plain white
 6. **No dependencies** — WinHTTP and a 300-line JSON reader, fuzzed under ASan and UBSan
 7. **Reproducible builds** with signed provenance on every release
 8. **Everything is a setting** — units, names, colours, weight, scale, which parts to draw and which current widgets to hide
+9. **Placed with `/hudlayout`** — the game's own layout editor moves, scales and hides the old lines along with the current widgets they stand in for, and the game keeps the result
 
 ### How it works
 
@@ -162,12 +163,14 @@ flowchart TD
 | `ALT / HDG / ATC` line | `NUI::Speedometer::State` → `isPlane`, `altitude`, `heading`, `atcOnline` |
 | `ELS` state | `NUI::Speedometer::State` → `elsVisible`, `elsCode` |
 | `Admin-Duty`, `Tester-Duty` | `NUI::Hud::ToggleTip` → `admin`, `support` |
-| Minimap position | `NUI::Hud::RadarRect`, big map via `NUI::Hud::ToggleBigmap`, nudge via `NUI::Hud::Offset` |
+| Minimap position | `NUI::Hud::RadarRect`, big map via `NUI::Hud::ToggleBigmap`; `NUI::Hud::Offset` shifts the whole HUD, as it does the current one |
 | Server name, gamemode name, max players | **Not in the HUD data** — set in the settings file |
 
 Updates are **merged**, never replaced: a message that carries only `cash` leaves `bank` alone. A value that has not arrived yet renders as `—`, never as `0` — an unknown balance and a real balance of zero must not look the same. When the plugin attaches mid-session it reads cash, bank, area, street, version, players and clock off the (transparent) current widgets, so they are right immediately instead of after the next update.
 
 Two fields need care: `kms` arrives in **miles** despite its name, so only a metric reading is converted; `speed` arrives in whichever unit `measure` names, so it is converted only when the `units` setting asks for the other one.
+
+One edge needs care too. The minimap rectangle runs down to the bottom of the safe zone, and at the default safe zone that is the bottom edge of the screen — the minimap itself is drawn a little above it. The old HUD's block was measured with its anchor at 0.985 of the screen height, so the anchor never sits below that: hung from the screen's edge instead, the street line would leave the screen. A minimap that really does sit higher is followed.
 
 ---
 
@@ -182,7 +185,7 @@ Everything lives in `gtaw-oldhud.settings.txt`, written next to the plugin on fi
 | `gamemode_name` | `Roleplay` | The gold part of the bottom line |
 | `max_players` | `1500` | The denominator in the bottom line |
 | `units` | `imperial` | `imperial`, `metric`, or `auto` to follow the in-game speedometer |
-| `hide_new` | all ten | Which current widgets to make transparent — `cash,bank,location,compass,brand,speedo,weather,tips,minimapbar,speedsign` — or `none` |
+| `hide_new` | all ten | Which current widgets to make transparent — `cash,bank,location,compass,brand,speedo,weather,tips,minimapbar,speedsign` — or `none`. `tips` is the row of status icons beside the balances, staff duty badge included; leave it out to keep them |
 | `show_*` | `yes` | `cash`, `bank`, `location`, `speed`, `fuel`, `odometer`, `aviation`, `staff`, `els`, `footer`, `players`, `time` |
 | `els_hold_ms` | `5000` | How long the ELS state stays up after it changes; `0` keeps it up |
 | `font_file` | `gtaw-oldhud.font.ttf` | A font next to the `.asi` to draw with, ahead of everything else |
@@ -192,7 +195,24 @@ Everything lives in `gtaw-oldhud.settings.txt`, written next to the plugin on fi
 | `*_color` | GTA's palette | `#rgb` or `#rrggbb` only |
 | `text_alpha` | `0.784` | The alpha the game gave this text — 200 of 255 |
 
-There are **no per-line size or position settings**. The old HUD's geometry is what makes it the old HUD, so it is built in.
+There are **no per-line size or position settings**. The old HUD's geometry is what makes it the old HUD, so it is built in. To move things anyway, use the game's own layout editor.
+
+### The layout editor
+
+`/hudlayout` places the old HUD too. The editor works on the current HUD's widgets — drag one, scroll to scale it, click its × to hide it — and the game keeps the result between sessions. Whatever it does to a widget, the plugin does to the old lines that stand in for it:
+
+| Widget in the editor | Old HUD lines that follow it |
+|---|---|
+| Cash chip | Cash |
+| Bank chip | Bank |
+| Status icons (`tips`) | `Admin-Duty`, `Tester-Duty` |
+| Compass | The compass letter and its dividers |
+| Location bar | Area and street |
+| Server block | The server line |
+
+While the editor is open the current widgets are shown again so there is something to take hold of, and the old lines move with them as you drag. Save, and the plugin reads the outcome straight off the page from then on — it never writes to the editor and never sends anything, so the layout lives where the game keeps it. Hiding a widget hides its old lines; the editor's **Reset** brings everything back.
+
+The speedometer is placed by a different mechanism and the old vehicle block is docked to the minimap regardless, so it is not part of this; `dock_x` and `dock_y` nudge that block.
 
 The plugin never overwrites an existing settings file. If yours was written by an older version, delete it once to pick up new defaults.
 
@@ -264,6 +284,7 @@ Every source file is typechecked; the JSON reader is unit-tested and fuzzed unde
 | Log says `Waiting: …` forever | The HUD page is not up yet, or another debugger client holds the target — see below |
 | FiveM stops during startup | Remove the `.asi` to confirm; keep the log and the crash dump |
 | Text is the wrong width | The face that resolved is far from a condensed one — put a condensed `.ttf` next to the plugin as `gtaw-oldhud.font.ttf` |
+| The street line is cut off at the bottom of the screen | Fixed in 1.0.1; update. If it still is, `dock_y = -0.01` lifts the block one percent of the screen |
 | Both HUDs are visible | `hide_new` was edited; set it back to the default list |
 | Warnings about unknown keys in the log | The settings file is from an older version — delete it once and it is regenerated |
 | Antivirus flags the file | See [docs/antivirus.md](docs/antivirus.md) |

@@ -266,7 +266,6 @@ std::string buildCss()
     css += "}\n";
 
     css += kBaseCss;
-    css += buildHideRules();
     return css;
 }
 
@@ -280,14 +279,16 @@ std::string buildCss()
 const char* kScript = R"JS(function (CFG) {
   'use strict';
 
-  var NS = '__gtawOldHud', ROOT_ID = 'gtaw-oldhud-root', STYLE_ID = 'gtaw-oldhud-style';
+  var NS = '__gtawOldHud', ROOT_ID = 'gtaw-oldhud-root', STYLE_ID = 'gtaw-oldhud-style',
+      HIDE_ID = 'gtaw-oldhud-hide';
 
   // A previous install may still be running in an older private world, or may have left its
   // nodes behind when that world was torn down with the document. Clear both before rebuilding.
   if (window[NS] && typeof window[NS].destroy === 'function') {
     try { window[NS].destroy(); } catch (e) {}
   }
-  var stale = [document.getElementById(ROOT_ID), document.getElementById(STYLE_ID)];
+  var stale = [document.getElementById(ROOT_ID), document.getElementById(STYLE_ID),
+               document.getElementById(HIDE_ID)];
   for (var s = 0; s < stale.length; s++)
     if (stale[s] && stale[s].parentNode) stale[s].parentNode.removeChild(stale[s]);
 
@@ -317,13 +318,21 @@ const char* kScript = R"JS(function (CFG) {
   // The old HUD moved the whole docked block right by this much while the big map was open.
   var BIGMAP_SHIFT = 0.089;
 
-  // Balances and the server line were positioned against the screen, not the minimap. The old
-  // HUD only fell back to the real screen size below 1920 wide; above it, it kept using 1920 by
-  // 1080 as the reference, which is why the inset grows with the resolution.
-  var CASH_Y = 0.060, BANK_Y = 0.100, ADMIN_Y = 0.140, TESTER_Y = 0.175, FOOTER_LIFT = 35;
-  var MONEY_INSET = 70;
+  // The lowest the docked block's anchor may sit, as a fraction of the screen height.
+  //
+  // The rectangle the game reports for the minimap runs down to the bottom of the safe zone,
+  // and at the default safe zone that is the bottom edge of the screen: the minimap itself is
+  // drawn a little above it, and the current HUD never docks against that edge either. The old
+  // HUD's offsets were measured with the anchor here; hung any lower, the street line leaves
+  // the screen.
+  var DOCK_FLOOR = 0.985;
+
+  // Balances and the server line were positioned against the screen, not the minimap: the
+  // balances centred 70px in from the right edge and the server line 35px up from the bottom,
+  // both at 1920 by 1080 and both scaling with the screen, as the game's own text does.
+  var CASH_Y = 0.060, BANK_Y = 0.100, ADMIN_Y = 0.140, TESTER_Y = 0.175;
+  var MONEY_X = 1 - 70 / 1920, FOOTER_Y = 1 - 35 / 1080;
   var CASH_SCALE = 0.8, BANK_SCALE = 0.7, STAFF_SCALE = 0.5, FOOTER_SCALE = 0.45;
-  var REF_W = 1920, REF_H = 1080;
 
   // The ELS state sat 0.18 of the screen above the minimap's bottom edge, over on the right with
   // the balances, as two lines: the word ELS and the state under it.
@@ -353,14 +362,79 @@ const char* kScript = R"JS(function (CFG) {
   // again until the next change. elsShownAt is when the current state arrived.
   var elsShownAt = 0, elsTimer = null;
 
-  var radar = null, bigmap = false, offset = { x: 0, y: 0 };
+  // The minimap rectangle as the game reported it, and the same rectangle in page pixels. The
+  // first is kept so the second can be worked out again whenever the window changes size.
+  var radarRaw = null, radar = null, bigmap = false, offset = { x: 0, y: 0 };
   var hudVisible = true, pauseMenu = false, fadeOpaque = true, fadeMs = 200;
+
+  // ---- the current HUD's layout editor (/hudlayout) --------------------------------------
+  // The editor lets a player drag, scale and hide the current HUD's widgets, and the game keeps
+  // the result between sessions. Nothing of the old HUD can be registered there and this never
+  // sends anything, but the outcome is written onto the widgets themselves: an inline
+  // "translate(dx, dy) scale(s)" on each, and a hidden one simply not on the page. So it is
+  // read from there and applied to the matching old lines, which makes the editor place the
+  // old HUD too: drag the cash chip and the old cash figure goes with it.
+  //
+  // Which widget stands for which lines. The speedometer is not among them: it is placed by a
+  // different mechanism, and the old vehicle block is docked to the minimap in any case.
+  var LAYOUT_WIDGETS = {
+    cash:     '.rightBlockSlot--cash',
+    bank:     '.rightBlockSlot--bank',
+    tips:     '.tips',
+    brand:    '.brandBlock',
+    compass:  '.compassW',
+    location: '.locBar'
+  };
+  var TRANSFORM_RE = /translate\(\s*(-?[0-9.]+)px\s*,\s*(-?[0-9.]+)px\s*\)\s*scale\(\s*([0-9.]+)\s*\)/;
+  var NO_ADJ = { dx: 0, dy: 0, s: 1, hidden: false };
+  var layout = {}, editing = false;
+
+  function adj(id) { return layout[id] || NO_ADJ; }
+
+  // Re-reads the editor's outcome off the page. True when anything changed.
+  function readLayout() {
+    var body = document.querySelector('.hudBody');
+    var nowEditing = !!document.querySelector('.hle-root');
+    var changed = nowEditing !== editing;
+    editing = nowEditing;
+
+    var next = {};
+    for (var id in LAYOUT_WIDGETS) {
+      var el = document.querySelector(LAYOUT_WIDGETS[id]);
+      var a = { dx: 0, dy: 0, s: 1, hidden: false };
+      if (el) {
+        var m = TRANSFORM_RE.exec(el.style.transform || '');
+        if (m) {
+          a.dx = Number(m[1]) || 0;
+          a.dy = Number(m[2]) || 0;
+          a.s  = Number(m[3]) > 0 ? Number(m[3]) : 1;
+        }
+      } else if (body) {
+        // Absent while the rest of the HUD is up is the editor's "hidden" -- except the compass
+        // and the location, which the current HUD also takes down while the big map is open.
+        a.hidden = !((id === 'compass' || id === 'location') && bigmap);
+      }
+      var p = layout[id];
+      if (!p || p.dx !== a.dx || p.dy !== a.dy || p.s !== a.s || p.hidden !== a.hidden)
+        changed = true;
+      next[id] = a;
+    }
+    layout = next;
+    return changed;
+  }
 
   // ---- nodes ---------------------------------------------------------------------------
   var style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = CFG.css;
   (document.head || document.documentElement).appendChild(style);
+
+  // The rules that make the current HUD's widgets transparent live apart from the rest, so they
+  // can be switched off while the layout editor is open and there is something to drag.
+  var hideStyle = document.createElement('style');
+  hideStyle.id = HIDE_ID;
+  hideStyle.textContent = CFG.hideCss;
+  (document.head || document.documentElement).appendChild(hideStyle);
 
   var root = document.createElement('div');
   root.id = ROOT_ID;
@@ -564,8 +638,14 @@ const char* kScript = R"JS(function (CFG) {
     if (!r || typeof r !== 'object' ||
         typeof r.width !== 'number' || typeof r.height !== 'number' ||
         !(r.width > 0) || !(r.height > 0) ||
-        !isFinite(r.left) || !isFinite(r.top)) { radar = null; return; }
+        !isFinite(r.left) || !isFinite(r.top)) { radarRaw = null; radar = null; return; }
 
+    radarRaw = { left: r.left, top: r.top, width: r.width, height: r.height,
+                 screenW: r.screenW, screenH: r.screenH };
+    radar = scaleRadar(radarRaw);
+  }
+
+  function scaleRadar(r) {
     var sx = r.screenW ? (window.innerWidth  || r.screenW) / r.screenW : 1;
     var sy = r.screenH ? (window.innerHeight || r.screenH) / r.screenH : 1;
 
@@ -580,24 +660,32 @@ const char* kScript = R"JS(function (CFG) {
     if (drawnH < h) { top += h - drawnH; h = drawnH; }
     if (wide) top += 2;
 
-    radar = { left: left, top: top, width: w, height: h };
+    return { left: left, top: top, width: w, height: h };
+  }
+
+  // The bottom edge the docked block and the ELS state are measured up from: the minimap's,
+  // when a rectangle has arrived and it is not below the floor; otherwise the floor.
+  function dockBottom() {
+    var floor = DOCK_FLOOR * (window.innerHeight || 0);
+    return radar ? Math.min(radar.top + radar.height, floor) : floor;
   }
 
   // The corner the whole docked block is measured from: the minimap's right edge and its bottom.
   function anchor() {
-    if (radar) return { x: radar.left + radar.width, y: radar.top + radar.height };
+    if (radar) return { x: radar.left + radar.width, y: dockBottom() };
 
     // Before the first rectangle arrives, work backwards from the current HUD's compass, which
     // sits at the minimap's right edge plus max(10, width * 0.06) and is a fifth of the
     // minimap's width. It is only made transparent, never removed, so it still reports a real
-    // rectangle. The game sends no bottom edge anywhere else, so that one falls back to where
-    // the default safe zone puts it.
+    // rectangle.
+    // The editor may have moved or scaled the compass; both are taken back out, since the
+    // compass scales from its bottom-left corner.
     var compass = document.querySelector('.compassW');
     if (compass) {
-      var b = compass.getBoundingClientRect();
+      var b = compass.getBoundingClientRect(), c = adj('compass');
       if (b.width > 0) {
-        var w = b.width / 0.2;
-        return { x: b.left - Math.max(10, w * 0.06), y: window.innerHeight * 0.985 };
+        var w = b.width / c.s / 0.2;
+        return { x: b.left - c.dx - Math.max(10, w * 0.06), y: dockBottom() };
       }
     }
     return null;
@@ -629,30 +717,36 @@ const char* kScript = R"JS(function (CFG) {
     root.style.transitionDuration = fadeMs + 'ms';
     root.style.opacity = (hudVisible && !pauseMenu && fadeOpaque) ? '1' : '0';
 
+    // The game's nudge for the whole HUD. The current one applies it to everything it draws,
+    // so the old one follows as a whole too.
+    root.style.transform = (offset.x || offset.y)
+        ? 'translate(' + (offset.x * 100) + 'vw,' + (offset.y * 100) + 'vh)' : '';
+
+    // While the layout editor is open the current widgets are shown again to be dragged, and
+    // the old lines follow them live.
+    hideStyle.disabled = editing;
+
     // ---- balances ----------------------------------------------------------------------
-    // The reference resolution the old HUD measured the inset against.
-    var refW = W < REF_W ? W : REF_W, refH = W < REF_W ? H : REF_H;
-    var moneyX = W * (refW - MONEY_INSET) / (refW || 1) + (offset.x || 0) * W;
-    var moneyDY = (offset.y || 0) * H;
+    var moneyX = MONEY_X * W;
+    var lc = adj('cash'), lb = adj('bank'), lt = adj('tips');
 
     cashEl.textContent = money_(hud.cash);
     bankEl.textContent = money_(hud.bank);
-    place(cashEl, moneyX, CASH_Y * H + moneyDY, CASH_SCALE);
-    place(bankEl, moneyX, BANK_Y * H + moneyDY, BANK_SCALE);
-    show(cashEl, CFG.showCash);
-    show(bankEl, CFG.showBank);
+    place(cashEl, moneyX + lc.dx, CASH_Y * H + lc.dy, CASH_SCALE * lc.s);
+    place(bankEl, moneyX + lb.dx, BANK_Y * H + lb.dy, BANK_SCALE * lb.s);
+    show(cashEl, CFG.showCash && !lc.hidden);
+    show(bankEl, CFG.showBank && !lb.hidden);
 
     // ---- on duty -----------------------------------------------------------------------
-    place(adminEl,  moneyX, ADMIN_Y  * H + moneyDY, STAFF_SCALE);
-    place(testerEl, moneyX, TESTER_Y * H + moneyDY, STAFF_SCALE);
-    show(adminEl,  CFG.showStaff && !!tips.admin);
-    show(testerEl, CFG.showStaff && !!tips.support);
+    place(adminEl,  moneyX + lt.dx, ADMIN_Y  * H + lt.dy, STAFF_SCALE * lt.s);
+    place(testerEl, moneyX + lt.dx, TESTER_Y * H + lt.dy, STAFF_SCALE * lt.s);
+    show(adminEl,  CFG.showStaff && !lt.hidden && !!tips.admin);
+    show(testerEl, CFG.showStaff && !lt.hidden && !!tips.support);
 
     // ---- the ELS state -----------------------------------------------------------------
     // Measured up from the minimap's bottom edge, but drawn over on the right with the
     // balances, which is where the old HUD put it.
-    var elsBottom = radar ? (radar.top + radar.height) : H * 0.985;
-    var elsY = elsBottom - ELS_LIFT * H;
+    var elsY = dockBottom() - ELS_LIFT * H;
     var code = toNum(spd.elsCode);
     elsStateEl.textContent = code === 3 ? 'SIREN' : code === 2 ? 'LIGHTS' : 'OFF';
     elsStateEl.className = 'ohud-line ohud-mid ' +
@@ -676,11 +770,12 @@ const char* kScript = R"JS(function (CFG) {
       tail += ' \u2014 ' + Math.round(players) + '/' + CFG.maxPlayers;
     if (CFG.showTime && time) tail += ' \u2014 ' + time;
 
+    var lf = adj('brand');
     fServer.textContent = CFG.serverName + ' \u2014 ';
     fMode.textContent   = CFG.gamemodeName + (version ? ' v' + version : '');
     fTail.textContent   = tail;
-    place(footEl, W / 2, H * (refH - FOOTER_LIFT) / (refH || 1), FOOTER_SCALE);
-    show(footEl, CFG.showFooter);
+    place(footEl, W / 2 + lf.dx, FOOTER_Y * H + lf.dy, FOOTER_SCALE * lf.s);
+    show(footEl, CFG.showFooter && !lf.hidden);
 
     // ---- everything docked against the minimap -----------------------------------------
     var a = anchor();
@@ -694,9 +789,11 @@ const char* kScript = R"JS(function (CFG) {
     // said it was; dock_x and dock_y are the same thing.
     var ox = a.x + (bigmap ? BIGMAP_SHIFT * W : 0) + CFG.dockX * W;
     var oy = a.y + CFG.dockY * H;
-    function put(node) {
+    // l is the editor's adjustment for the widget this line stands in for, if any.
+    function put(node, l) {
       var spec = node._spec;
-      place(node, ox + spec.x * W, oy - spec.y * H, spec.s);
+      l = l || NO_ADJ;
+      place(node, ox + spec.x * W + l.dx, oy - spec.y * H + l.dy, spec.s * l.s);
     }
 
     // A property name replaces the whole location block with one line where the street goes,
@@ -710,12 +807,13 @@ const char* kScript = R"JS(function (CFG) {
     zoneEl.textContent   = zone;
     streetEl.textContent = property || street;
 
+    var lk = adj('compass'), ll = adj('location');
     var loc = CFG.showLocation;
-    show(cardEl,   loc && !property && !!card);
-    show(cdivEl,   loc && !property && !!card);
-    show(zoneEl,   loc && !property && !!zone);
-    show(streetEl, loc && !!(property || street));
-    put(cardEl); put(cdivEl); put(zoneEl); put(streetEl);
+    show(cardEl,   loc && !lk.hidden && !property && !!card);
+    show(cdivEl,   loc && !lk.hidden && !property && !!card);
+    show(zoneEl,   loc && !ll.hidden && !property && !!zone);
+    show(streetEl, loc && !ll.hidden && !!(property || street));
+    put(cardEl, lk); put(cdivEl, lk); put(zoneEl, ll); put(streetEl, ll);
 
     // ---- the vehicle block --------------------------------------------------------------
     // kms arrives in miles despite its name, so only a metric reading needs converting. speed
@@ -757,10 +855,13 @@ const char* kScript = R"JS(function (CFG) {
     }
 
     var altitude = toNum(spd.altitude), heading = toNum(spd.heading);
+    // A heading is a bearing: wrapped into 0 to 359, so a reading that arrives negative or past
+    // a full turn is not drawn as one.
+    if (heading !== null) heading = ((Math.round(heading) % 360) + 360) % 360;
     aviLead.textContent = 'ALT: ';
     aviAlt.textContent = altitude === null ? CFG.placeholder : String(Math.round(altitude));
     aviMid.textContent = ' ft. / HDG: ';
-    aviHdg.textContent = heading === null ? CFG.placeholder : String(Math.round(heading));
+    aviHdg.textContent = heading === null ? CFG.placeholder : String(heading);
     aviAtc.textContent = spd.atcOnline ? ' / ATC: ' : '';
     aviOn.textContent  = spd.atcOnline ? 'ONLINE' : '';
 
@@ -768,9 +869,9 @@ const char* kScript = R"JS(function (CFG) {
     show(aviEl,    inVehicle && CFG.showAviation && !!spd.isPlane);
     show(speedEl,  inVehicle && CFG.showSpeed);
     show(fuelEl,   inVehicle && CFG.showFuel && pct !== null);
-    show(sdivEl,   inVehicle && (CFG.showSpeed || CFG.showOdometer || CFG.showFuel));
+    show(sdivEl,   inVehicle && !lk.hidden && (CFG.showSpeed || CFG.showOdometer || CFG.showFuel));
     show(odoEl,    inVehicle && CFG.showOdometer && odo !== null && odo > ODO_MIN && odo < ODO_MAX);
-    put(aviEl); put(speedEl); put(fuelEl); put(sdivEl); put(odoEl);
+    put(aviEl); put(speedEl); put(fuelEl); put(sdivEl, lk); put(odoEl);
   }
 
   // ---- incoming messages ----------------------------------------------------------------
@@ -807,14 +908,22 @@ const char* kScript = R"JS(function (CFG) {
       case 'HUD::SET_STATE':          merge(hud, HUD_KEYS, data); break;
       case 'NUI::Speedometer::State': elsWatch(function () { merge(spd, SPD_KEYS, data); }); break;
       case 'NUI::Speedometer::Show':
-        elsWatch(function () { spd.visible = true; merge(spd, SPD_KEYS, data); });
+        // Entering a vehicle starts from a clean reading, as it does in the current HUD: the
+        // last vehicle's speed, altitude, heading and ELS state do not carry over into this one.
+        elsWatch(function () {
+          spd.visible = true;
+          spd.speed = 0; spd.altitude = 0; spd.heading = 0;
+          spd.elsVisible = false; spd.elsCode = 1; spd.elsTone = 0;
+          merge(spd, SPD_KEYS, data);
+        });
         break;
       case 'NUI::Speedometer::Hide':  spd.visible = false; break;
       case 'NUI::Hud::ToggleTip':
         if (data && typeof data === 'object' && (data.tip in tips)) tips[data.tip] = !!data.visible;
         break;
       case 'NUI::Hud::RadarRect':     setRadar(data); break;
-      case 'NUI::Hud::ToggleBigmap':  bigmap = !!(data && data.active); break;
+      case 'NUI::Hud::ToggleBigmap':  bigmap = !!(data && data.active); readLayout(); break;
+      case 'NUI::HudLayout::Edit':    readLayout(); break;
       case 'NUI::Hud::Offset':
         offset = { x: (data && Number(data.x)) || 0, y: (data && Number(data.y)) || 0 };
         break;
@@ -864,9 +973,21 @@ const char* kScript = R"JS(function (CFG) {
     return text ? text.trim() : '';
   }
 
+  // The current HUD writes its balances with toLocaleString(), so between the digits there may
+  // be a comma, a dot or a space depending on the client's locale. A balance is a whole number
+  // of dollars, so the digits are all that is read.
+  function readMoney(selector) {
+    var text = readText(selector);
+    var digits = text.replace(/[^0-9]/g, '');
+    if (!digits) return null;
+    var n = Number(digits);
+    if (!isFinite(n)) return null;
+    return /^\s*-|\$\s*-/.test(text) ? -n : n;
+  }
+
   function seedFromScreen() {
-    if (hud.cash === null)    { var c = toNum(readText('.rightBlockSlot--cash .trVal')); if (c !== null) hud.cash = c; }
-    if (hud.bank === null)    { var b = toNum(readText('.rightBlockSlot--bank .trVal')); if (b !== null) hud.bank = b; }
+    if (hud.cash === null)    { var c = readMoney('.rightBlockSlot--cash .trVal'); if (c !== null) hud.cash = c; }
+    if (hud.bank === null)    { var b = readMoney('.rightBlockSlot--bank .trVal'); if (b !== null) hud.bank = b; }
     if (hud.zone === null)    { var z = readText('.locZoneInner') || readText('.locZone'); if (z) hud.zone = z; }
     if (hud.street === null)  { var t = readText('.locStreet'); if (t) hud.street = t; }
     if (hud.version === null) { var v = readText('.brandVersion'); if (v) hud.version = v.replace(/^v/i, ''); }
@@ -880,13 +1001,38 @@ const char* kScript = R"JS(function (CFG) {
     schedule();
   }
 
-  function onResize() { fontCache = {}; schedule(); }
+  function onResize() {
+    fontCache = {};
+    if (radarRaw) radar = scaleRadar(radarRaw);
+    schedule();
+  }
 
   // ---- lifetime ---------------------------------------------------------------------------
   window.addEventListener('message', onMessage);
   window.addEventListener('resize', onResize);
 
+  // The editor writes its outcome onto the widgets as they are dragged, and the saved layout is
+  // applied to them a moment after the page comes up, so the page is watched for both: a
+  // widget's inline style changing, or a widget appearing or going. The observer is batched by
+  // the browser and the read is a handful of lookups, so this costs nothing to speak of.
+  var observer = null;
+  if (typeof MutationObserver === 'function') {
+    try {
+      observer = new MutationObserver(function (records) {
+        // Every render touches this HUD's own nodes; those are not the editor's doing.
+        for (var i = 0; i < records.length; i++) {
+          if (root.contains(records[i].target)) continue;
+          if (readLayout()) schedule();
+          return;
+        }
+      });
+      observer.observe(document.documentElement,
+                       { subtree: true, childList: true, attributes: true, attributeFilter: ['style'] });
+    } catch (e) { observer = null; }
+  }
+
   seedFromScreen();
+  readLayout();
   recalibrate();
   render();
 
@@ -908,21 +1054,27 @@ const char* kScript = R"JS(function (CFG) {
     alive: function () {
       if (!document.getElementById(STYLE_ID))
         (document.head || document.documentElement).appendChild(style);
+      if (!document.getElementById(HIDE_ID))
+        (document.head || document.documentElement).appendChild(hideStyle);
       if (!document.getElementById(ROOT_ID)) {
         if (!document.body) return false;
         document.body.appendChild(root);
         seedFromScreen();
         schedule();
       }
+      // Without a MutationObserver this heartbeat is what notices the editor's changes.
+      if (!observer && readLayout()) schedule();
       return true;
     },
 
     destroy: function () {
       window.removeEventListener('message', onMessage);
       window.removeEventListener('resize', onResize);
+      if (observer) { try { observer.disconnect(); } catch (e) {} observer = null; }
       if (elsTimer) { clearTimeout(elsTimer); elsTimer = null; }
-      if (root.parentNode)  root.parentNode.removeChild(root);
-      if (style.parentNode) style.parentNode.removeChild(style);
+      if (root.parentNode)      root.parentNode.removeChild(root);
+      if (style.parentNode)     style.parentNode.removeChild(style);
+      if (hideStyle.parentNode) hideStyle.parentNode.removeChild(hideStyle);
       try { delete window[NS]; } catch (e) { window[NS] = undefined; }
     }
   };
@@ -939,6 +1091,7 @@ std::string buildInstallScript()
     std::string cfg = "{";
     cfg += "\"version\":"      + json::quote(GTAW_OLDHUD_VERSION);
     cfg += ",\"css\":"         + json::quote(buildCss());
+    cfg += ",\"hideCss\":"     + json::quote(buildHideRules());
     cfg += ",\"font\":"        + json::quote(buildFontStack());
     cfg += ",\"placeholder\":" + json::quote(g_set.placeholder);
     cfg += ",\"serverName\":"  + json::quote(g_set.serverName);

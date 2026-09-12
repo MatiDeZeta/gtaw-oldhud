@@ -26,7 +26,7 @@ const line = (name) => root().childNodes[LINES.indexOf(name)];
 const text = (name) => line(name).textContent;
 
 section('the generated expression runs');
-check('install', result, 'installed 1.0.0');
+check('install', result, 'installed 1.0.1');
 
 const css = document.getElementById('gtaw-oldhud-style').textContent;
 
@@ -46,7 +46,8 @@ check('no undefined custom properties', missing.length ? missing.join(',') : 'no
 
 section('every rule is scoped so it cannot leak into the page');
 const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
-const selectors = [...bare.matchAll(/(^|})\s*([^{}@]+){/g)].map(m => m[2].trim());
+const hideBare = document.getElementById('gtaw-oldhud-hide').textContent;
+const selectors = [...(bare + hideBare).matchAll(/(^|})\s*([^{}@]+){/g)].map(m => m[2].trim());
 const unscoped = selectors.filter(sel =>
   !sel.split(',').every(part => part.trim().startsWith('#gtaw-oldhud-root') ||
                                 part.trim().startsWith('.rightBlockSlot') ||
@@ -61,11 +62,15 @@ const unscoped = selectors.filter(sel =>
 check('no stray global selectors', unscoped.length ? unscoped.join(' | ') : 'none', 'none');
 
 section('the hide rules target the current HUD');
+// They are a stylesheet of their own, so the script can switch them off while the layout
+// editor is open.
+const hide = document.getElementById('gtaw-oldhud-hide').textContent;
 for (const sel of ['.rightBlockSlot--cash', '.rightBlockSlot--bank', '.locBar', '.compassW',
                    '.brandBlock', '.spd-root', '.wxBar', '.tips', '.mmb-bar', '.speedSign'])
-  check(`hides ${sel}`, css.includes(sel), 'true');
-check('by transparency, not display:none', /opacity:0 !important/.test(css), 'true');
-check('so the widgets stay laid out and readable', /display:\s*none !important/.test(css), 'false');
+  check(`hides ${sel}`, hide.includes(sel), 'true');
+check('by transparency, not display:none', /opacity:0 !important/.test(hide), 'true');
+check('so the widgets stay laid out and readable', /display:\s*none !important/.test(hide), 'false');
+check('and not in the main sheet', /opacity:0 !important/.test(css), 'false');
 
 section('the font');
 const faces = [...css.matchAll(/@font-face\{font-family:"([^"]+)"/g)].map(m => m[1]);

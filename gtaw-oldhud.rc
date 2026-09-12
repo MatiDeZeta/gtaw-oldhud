@@ -28,8 +28,8 @@ FX_ASI_BUILD 3889 BEGIN "\0" END
 // Defender's scoring, and it leaves anyone who right-clicks the file with nothing to read.
 // Keep these in step with GTAW_OLDHUD_VERSION in src/core/version.h.
 1 VERSIONINFO
-FILEVERSION    1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION    1,0,1,0
+PRODUCTVERSION 1,0,1,0
 FILEFLAGSMASK  0x3fL
 FILEFLAGS      0x0L
 FILEOS         0x40004L
@@ -42,12 +42,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "MatiDeZeta"
             VALUE "FileDescription",  "gtaw-oldhud - draws GTA World's old HUD style in FiveM"
-            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "FileVersion",      "1.0.1.0"
             VALUE "InternalName",     "gtaw-oldhud"
             VALUE "LegalCopyright",   "Copyright (c) 2026 MatiDeZeta. MIT licensed."
             VALUE "OriginalFilename", "gtaw-oldhud.asi"
             VALUE "ProductName",      "gtaw-oldhud"
-            VALUE "ProductVersion",   "1.0.0.0"
+            VALUE "ProductVersion",   "1.0.1.0"
             VALUE "Comments",         "Source and releases: https://github.com/MatiDeZeta/gtaw-oldhud"
         END
     END

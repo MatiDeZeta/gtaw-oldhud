@@ -1,5 +1,50 @@
 # Changelog
 
+## v1.0.1
+
+- **`/hudlayout` places the old HUD.** The game's layout editor drags, scales and hides the
+  current HUD's widgets and keeps the result between sessions; the plugin now reads that
+  outcome off the widgets themselves and applies it to the old lines that stand in for them:
+  cash, bank, the status icons (the duty lines), the compass, the location bar and the server
+  block. While the editor is open the current widgets are shown again so there is something to
+  drag, and the old lines follow live. Before, the plugin's transparency rule also stopped those
+  widgets being dragged at all.
+
+- **The location block no longer runs off the bottom of the screen.** The minimap rectangle the
+  game reports runs down to the bottom of the safe zone, and at the default safe zone that is the
+  bottom edge of the screen; the block was hung from it, and on a 1080p screen the street line
+  was drawn half off the screen. The anchor now never sits below 0.985 of the screen height,
+  which is where the old HUD's block was measured, while a minimap that really does sit higher is
+  still followed.
+
+- **The balances and the server line sit where the old HUD put them at every resolution.** Both
+  are placed in the game's own normalised coordinates — 70px in from the right and 35px up from
+  the bottom at 1920 by 1080, scaling with the screen — rather than a flat pixel inset below 1920
+  wide. Nothing moves at 1920 by 1080 or above.
+
+- **Getting into a vehicle starts from a clean reading.** Speed, altitude, heading and the ELS
+  state reset on entering a vehicle, as they do in the current HUD, so the last patrol car's ELS
+  state no longer follows you into the next car (visible with `els_hold_ms = 0`).
+
+- **A heading is drawn as a bearing**, 0 to 359, so a negative reading or one past a full turn
+  is not shown as such.
+
+- **Balances seeded from the screen are read whatever the client's locale.** The current HUD
+  writes them with the client's own thousands separator, and `$1.234.567` was read as `$1`.
+
+- **The game's HUD nudge moves the whole of the old HUD**, as it moves the whole of the current
+  one; before, only the balances followed it.
+
+- **A window resize re-derives the minimap rectangle** from the game's numbers instead of keeping
+  the one scaled for the old size.
+
+- **The log no longer calls an install done when the interface's document was not built yet.**
+  It waits and retries, once per `reconnect_ms`, and says so once.
+
+- The settings file says what `tips` in `hide_new` covers: the row of status icons beside the
+  balances — a new notification, bleeding, drugged — and the staff duty badge, not the badge
+  alone.
+
 ## v1.0.0
 
 First release. Draws GTA World's old HUD in FiveM from the data the current HUD is already being

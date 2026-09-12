@@ -93,8 +93,20 @@ DWORD WINAPI HudWorker(LPVOID)
             std::string  err;
             json::Value  result;
             if (client.evaluate(hud::buildInstallScript(), result, err)) {
-                LOG_INFO("Old HUD installed (%s)", resultText(result).c_str());
-                installed = true;
+                // The script answers "installed <version>" once its nodes are on the page. The
+                // only other answer is "no-body": the frame is there but its document is not
+                // built yet, which is a wait, not a failure.
+                std::string answer = resultText(result);
+                if (answer.rfind("installed", 0) == 0) {
+                    LOG_INFO("Old HUD installed (%s)", answer.c_str());
+                    installed = true;
+                } else {
+                    if (answer != lastQuietReason) {
+                        LOG_INFO("Waiting: the interface document is not ready (%s)", answer.c_str());
+                        lastQuietReason = answer;
+                    }
+                    delay = (DWORD)g_set.reconnectMs;
+                }
             } else {
                 LOG_WARN("Could not install the old HUD: %s", err.c_str());
                 client.close();

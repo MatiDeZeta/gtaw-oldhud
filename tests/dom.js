@@ -27,6 +27,7 @@ class El {
              right: r.left + r.width, bottom: r.top + r.height };
   }
   descendants() { let o = []; for (const c of this.childNodes) { o.push(c); o = o.concat(c.descendants()); } return o; }
+  contains(n) { for (let x = n; x; x = x.parentNode) if (x === this) return true; return false; }
 
   // Canvas text metrics, which the payload uses to find the font size that draws capitals a
   // wanted number of pixels tall. The ratios are Roboto Condensed's, one of the faces the
@@ -137,8 +138,21 @@ function widget(className, text, parent) {
   return n;
 }
 
+// A MutationObserver that fires when a test says the page changed, with a record naming the
+// node that did, so the payload's own rendering can be told apart from the editor's.
+const observers = [];
+class MutationObserver {
+  constructor(fn) { this.fn = fn; }
+  observe() { observers.push(this); }
+  disconnect() { const i = observers.indexOf(this); if (i >= 0) observers.splice(i, 1); }
+}
+function mutate(target) {
+  for (const o of observers.slice()) o.fn([{ target: target || body }]);
+}
+
 global.window = window;
 global.document = document;
+global.MutationObserver = MutationObserver;
 
 module.exports = { El, window, document, body, head, flush, post, postLikeGtaw, widget, listeners,
-                   setFontMetrics, setFontProbe, advanceClock, resetClock };
+                   setFontMetrics, setFontProbe, advanceClock, resetClock, mutate, observers };
