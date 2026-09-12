@@ -1,0 +1,58 @@
+// FiveM (asi-five) refuses any .asi on game build 2189+ that does not claim support for the
+// running build. It does FindResource(module, L"FX_ASI_BUILD", MAKEINTRESOURCE(GetGameBuild())),
+// so the resource NAME is FX_ASI_BUILD and its TYPE is the build number. One line per build.
+//
+// Servers pin their own build, so one line is not enough, and a missing line fails silently:
+// the loader simply never loads the DLL and there is no log to read. A line for a build that
+// does not exist costs nothing. Add a line when the build ladder moves.
+FX_ASI_BUILD 2189 BEGIN "\0" END
+FX_ASI_BUILD 2372 BEGIN "\0" END
+FX_ASI_BUILD 2545 BEGIN "\0" END
+FX_ASI_BUILD 2612 BEGIN "\0" END
+FX_ASI_BUILD 2699 BEGIN "\0" END
+FX_ASI_BUILD 2802 BEGIN "\0" END
+FX_ASI_BUILD 2944 BEGIN "\0" END
+FX_ASI_BUILD 3095 BEGIN "\0" END
+FX_ASI_BUILD 3258 BEGIN "\0" END
+FX_ASI_BUILD 3323 BEGIN "\0" END
+FX_ASI_BUILD 3407 BEGIN "\0" END
+FX_ASI_BUILD 3442 BEGIN "\0" END
+FX_ASI_BUILD 3570 BEGIN "\0" END
+FX_ASI_BUILD 3679 BEGIN "\0" END
+FX_ASI_BUILD 3751 BEGIN "\0" END
+FX_ASI_BUILD 3775 BEGIN "\0" END
+FX_ASI_BUILD 3788 BEGIN "\0" END
+FX_ASI_BUILD 3889 BEGIN "\0" END
+
+// Version resource. An unsigned binary with no version info is itself a weighting factor in
+// Defender's scoring, and it leaves anyone who right-clicks the file with nothing to read.
+// Keep these in step with GTAW_OLDHUD_VERSION in src/core/version.h.
+1 VERSIONINFO
+FILEVERSION    1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILEFLAGSMASK  0x3fL
+FILEFLAGS      0x0L
+FILEOS         0x40004L
+FILETYPE       0x2L
+FILESUBTYPE    0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",      "MatiDeZeta"
+            VALUE "FileDescription",  "gtaw-oldhud - draws GTA World's old HUD style in FiveM"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "gtaw-oldhud"
+            VALUE "LegalCopyright",   "Copyright (c) 2026 MatiDeZeta. MIT licensed."
+            VALUE "OriginalFilename", "gtaw-oldhud.asi"
+            VALUE "ProductName",      "gtaw-oldhud"
+            VALUE "ProductVersion",   "1.0.0.0"
+            VALUE "Comments",         "Source and releases: https://github.com/MatiDeZeta/gtaw-oldhud"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

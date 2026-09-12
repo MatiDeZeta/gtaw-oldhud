@@ -1,0 +1,101 @@
+name: build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write        # build provenance signing
+  attestations: write
+
+jobs:
+  # Most of the plugin is portable C++ plus one script, so the logic is checked on Linux where
+  # the sanitizers are available. This gates the Windows build: there is no point producing a
+  # binary from source that does not pass its own tests.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the test suite
+        run: ./tests/run.sh
+
+  build:
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        shell: cmd
+        run: build.bat
+
+      # /Brepro makes the linker stamp a content hash instead of a clock, so the same source must
+      # produce the same bytes. Building twice and comparing is what turns that from a flag into
+      # a guarantee: anyone can build this themselves and check their .asi against the release.
+      - name: Verify reproducible rebuild
+        shell: pwsh
+        run: |
+          $first = (Get-FileHash .\gtaw-oldhud.asi -Algorithm SHA256).Hash
+          & .\build.bat
+          if ($LASTEXITCODE -ne 0) { throw "Second build failed with exit code $LASTEXITCODE" }
+          $second = (Get-FileHash .\gtaw-oldhud.asi -Algorithm SHA256).Hash
+          if ($first -ne $second) { throw "Build is not reproducible: $first != $second" }
+          Write-Host "reproducible: $first"
+
+      # If the FX_ASI_BUILD stamp for the running game build is missing, FiveM declines to load
+      # the plugin and writes nothing anywhere, which looks exactly like "it does nothing".
+      # Checked here so a bad .rc edit cannot reach a release.
+      - name: Verify the binary is loadable
+        shell: pwsh
+        run: python tests/verify_asi.py gtaw-oldhud.asi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtaw-oldhud.asi
+          path: gtaw-oldhud.asi
+
+      # Signed proof that this exact .asi came out of this repository at this commit:
+      #   gh attestation verify gtaw-oldhud.asi --repo <owner>/<repo>
+      - name: Attest build provenance
+        if: startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: gtaw-oldhud.asi
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Release notes = the top (current) section of CHANGELOG.md
+          awk '/^## /{n++} n==1' CHANGELOG.md > notes.md
+          {
+            echo
+            echo '---'
+            echo
+            echo 'Put `gtaw-oldhud.asi` in your FiveM installation’s `FiveM.app\plugins\` folder. On first run'
+            echo 'it writes `gtaw-oldhud.settings.txt` next to itself with every option explained,'
+            echo 'and `gtaw-oldhud.log` recording what it did.'
+            echo
+            echo 'SHA-256:'
+            echo
+            echo '```'
+            sha256sum gtaw-oldhud.asi
+            echo '```'
+            echo
+            echo 'Check it was built from this repository, by this commit:'
+            echo
+            echo '```'
+            echo "gh attestation verify gtaw-oldhud.asi --repo $GITHUB_REPOSITORY"
+            echo '```'
+          } >> notes.md
+          gh release create "$GITHUB_REF_NAME" gtaw-oldhud.asi --title "$GITHUB_REF_NAME" --notes-file notes.md --latest \
+            || gh release upload "$GITHUB_REF_NAME" gtaw-oldhud.asi --clobber
