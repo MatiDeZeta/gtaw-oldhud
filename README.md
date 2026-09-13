@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.1.0-8b5cf6?style=flat-square" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.1.1-8b5cf6?style=flat-square" alt="Version"></a>
   <a href="https://github.com/MatiDeZeta/gtaw-oldhud/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/MatiDeZeta/gtaw-oldhud/build.yml?style=flat-square&label=build" alt="Build"></a>
   <a href="https://github.com/MatiDeZeta/gtaw-oldhud/releases/latest"><img src="https://img.shields.io/github/downloads/MatiDeZeta/gtaw-oldhud/total?style=flat-square&color=22c55e" alt="Downloads"></a>
   <a href="https://fivem.net/"><img src="https://img.shields.io/badge/FiveM-.asi_plugin-f40552?style=flat-square" alt="FiveM"></a>

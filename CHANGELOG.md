@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.1
+
+- **The private execution context is created without universal access.** The injected script
+  only ever touches the DOM of the frame it lives in, so the flag granted it cross-origin
+  privileges it never used. Least privilege; no behaviour changes.
+
 ## v1.1.0
 
 - **`/hudlayout` places the old HUD itself.** While the game's layout editor is open the old

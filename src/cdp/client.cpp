@@ -145,10 +145,10 @@ bool Client::connect(int port, std::string& err)
         return false;
     }
 
+    // No universal access: the script only ever touches the DOM of the frame it is created in,
+    // so the world gets nothing beyond what a script of that frame's own origin would have.
     std::string params = "{\"frameId\":" + json::quote(frameId_) +
-                         ",\"worldName\":" + json::quote(kWorldName) +
-                         // Spelled this way in the protocol itself.
-                         ",\"grantUniveralAccess\":true}";
+                         ",\"worldName\":" + json::quote(kWorldName) + "}";
 
     json::Value world;
     if (!call("Page.createIsolatedWorld", params, world, err)) { close(); return false; }
