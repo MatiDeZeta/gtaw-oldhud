@@ -26,7 +26,7 @@ const line = (name) => root().childNodes[LINES.indexOf(name)];
 const text = (name) => line(name).textContent;
 
 section('the generated expression runs');
-check('install', result, 'installed 1.0.1');
+check('install', result, 'installed 1.1.0');
 
 const css = document.getElementById('gtaw-oldhud-style').textContent;
 

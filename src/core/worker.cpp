@@ -1,6 +1,7 @@
 #include "core/worker.h"
 
 #include "cdp/client.h"
+#include "core/layout.h"
 #include "core/logger.h"
 #include "core/settings.h"
 #include "core/util.h"
@@ -21,12 +22,6 @@ bool sleepOrStop(DWORD ms)
 }
 
 // Runtime.evaluate answers with {"type":...,"value":...}; this reads the value out of it.
-bool resultIsTrue(const json::Value& result)
-{
-    const json::Value* value = result.member("value");
-    return value && value->isBool() && value->boolean;
-}
-
 std::string resultText(const json::Value& result)
 {
     const json::Value* value = result.member("value");
@@ -122,9 +117,17 @@ DWORD WINAPI HudWorker(LPVOID)
                 client.close();
                 installed = false;
                 delay = (DWORD)g_set.reconnectMs;
-            } else if (!resultIsTrue(result)) {
-                LOG_INFO("The injected HUD is no longer on the page; reinstalling");
-                installed = false;
+            } else {
+                const json::Value* value = result.member("value");
+                std::string answer = (value && value->isString()) ? value->string : std::string();
+                if (answer.rfind("ok", 0) != 0) {
+                    LOG_INFO("The injected HUD is no longer on the page; reinstalling");
+                    installed = false;
+                } else if (answer.size() >= 3 && answer[2] == '\n') {
+                    // The layout editor placed the old HUD; keep the result next to the .asi.
+                    // Empty is a Reset, and is kept too.
+                    layout::save(answer.substr(3));
+                }
             }
         }
 

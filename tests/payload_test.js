@@ -477,73 +477,124 @@ post({ action: 'NUI::Hud::InactiveFade', data: { opaque: true, ms: 400 } });
 flush();
 check('faded back in', root().style.opacity, '1');
 
-section('the layout editor: what /hudlayout does to the current HUD is done to the old one too');
-const hudBody = widget('hudBody');
-for (const w of [cashSlot, bankSlot, locBar, compass, brand]) hudBody.appendChild(w);
-install(CFG);
-post({ action: 'HUD::SET_STATE', data: { cardinal: 'N', zone: 'Davis', street: 'Grove Street',
-                                          propertyName: null } });
-flush();
-const hideStyle = () => document.getElementById('gtaw-oldhud-hide');
-check('the hide rules are their own stylesheet', hideStyle() !== null, true);
-check('and are on', !hideStyle().disabled, true);
-const cashLeft0 = px(line('cash').style.left), cardLeft0 = px(line('card').style.left);
+section('the layout editor: the old HUD is placed inside /hudlayout');
+const api0 = window.__gtawOldHud;
+check('nothing to hand over at rest', api0.pull(), null);
+check('not in edit mode', root().className, '');
+const cashLeft0 = px(line('cash').style.left), cashTop0 = px(line('cash').style.top);
+const streetLeft0 = px(line('street').style.left);
+const cross = (name) => line(name).childNodes.find((n) => n.className === 'ohud-x');
+check('each block carries a cross on its first line', !!cross('cash') && !!cross('footer'), true);
+check('which carries no text of its own', cross('cash').textContent, '');
 
 // The editor opens: its toolbar appears on the page.
 const editor = widget('hle-root');
+const toolbar = widget('hle-toolbar', null, editor);
+const buttons = widget('hle-buttons', null, toolbar);
+const [btnSave, btnSnap, btnReset, btnCancel] = ['Save', 'Snap', 'Reset', 'Cancel'].map((t) => {
+  const b = new dom.El('button'); b.textContent = t; buttons.appendChild(b); return b;
+});
 dom.mutate(editor); flush();
-check('the current widgets are shown again to be dragged', hideStyle().disabled, true);
+check('the root is in edit mode', root().className, 'ohud-editing');
+check('the ELS state is shown so it can be placed', line('els').style.display, '');
+check('so is the vehicle block', line('speed').style.display, '');
 
-// The cash chip is dragged and enlarged; the location bar moved; the compass moved too.
-cashSlot.style.transform = 'translate(12px, -30px) scale(1.25)';
-locBar.style.transform   = 'translate(-8px, 5px) scale(1)';
-compass.style.transform  = 'translate(20px, 0px) scale(1.5)';
+// Dragging the cash figure.
+dom.fire(line('cash'), 'mousedown', { clientX: 100, clientY: 200 });
+dom.fire(line('cash'), 'mousemove', { clientX: 112, clientY: 170 });
+flush();
+check('it follows the mouse', px(line('cash').style.left), px(cashLeft0 + 12));
+check('up as well', px(line('cash').style.top), px(cashTop0 - 30));
+dom.fire(line('cash'), 'mouseup', { clientX: 112, clientY: 170 });
+check('and stays', px(line('cash').style.left), px(cashLeft0 + 12));
+check('the bank was not touched', px(line('bank').style.left), px(cashLeft0));
+
+// Snapping, when the editor's grid is up.
+const grid = widget('hle-grid');
+dom.mutate(grid);
+dom.fire(line('bank'), 'mousedown', { clientX: 0, clientY: 0 });
+dom.fire(line('bank'), 'mousemove', { clientX: 23, clientY: 0 });
+dom.fire(line('bank'), 'mouseup', { clientX: 23, clientY: 0 });
+flush();
+check('snaps to the grid', px(line('bank').style.left), px(cashLeft0 + 20));
+body.removeChild(grid); dom.mutate(body);
+
+// The wheel scales a block; the location moves as one.
+dom.fire(line('street'), 'wheel', { deltaY: -100 });
+dom.fire(line('street'), 'wheel', { deltaY: -100 });
+flush();
+check('two notches up is 1.1', px(line('street').style.fontSize), px(cap(0.4 * 1.1) / 0.711));
+check('the whole block scales', px(line('zone').style.fontSize), px(cap(0.5 * 1.1) / 0.711));
+dom.fire(line('zone'), 'mousedown', { clientX: 0, clientY: 0 });
+dom.fire(line('zone'), 'mousemove', { clientX: -8, clientY: 5 });
+dom.fire(line('zone'), 'mouseup', { clientX: -8, clientY: 5 });
+flush();
+check('the street moves with the zone', px(line('street').style.left), px(streetLeft0 - 8));
+check('and the compass letter', px(line('card').style.left), px(streetLeft0 - 0.045 * W + 0.025 * W - 8));
+
+// The cross hides a block: faded while editing, gone afterwards.
+dom.fire(cross('footer'), 'mousedown', {});
+flush();
+check('a hidden block is faded in the editor', line('footer').className.includes('ohud-off'), true);
+check('but still drawn there', line('footer').style.display, '');
+
+// Save closes the editor: what was done is handed to the plugin, in the file's shape.
+dom.fire(btnSave, 'click', {});
+body.removeChild(editor); dom.mutate(body); flush();
+check('edit mode is over', root().className, '');
+check('the hidden block is gone', line('footer').style.display, 'none');
+check('the cash stays where it was put', px(line('cash').style.left), px(cashLeft0 + 12));
+const handed = api0.pull();
+check('the layout is handed over once', handed,
+      'cash = ' + (12 / W).toFixed(5) + ' ' + (-30 / H).toFixed(5) + ' 1.00 0\n' +
+      'bank = ' + (20 / W).toFixed(5) + ' 0.00000 1.00 0\n' +
+      'location = ' + (-8 / W).toFixed(5) + ' ' + (5 / H).toFixed(5) + ' 1.10 0\n' +
+      'footer = 0.00000 0.00000 1.00 1');
+check('and only once', api0.pull(), null);
+
+// A layout handed to the script on install is applied.
+install(Object.assign({}, CFG, { layout: handed }));
+flush();
+check('the cash is where it was left', px(line('cash').style.left), px(cashLeft0 + 12));
+check('the footer is hidden', line('footer').style.display, 'none');
+check('a nonsense line is ignored', (install(Object.assign({}, CFG, { layout: 'chat = 9 9 9 9\ncash = 0.5 0 1 0' })), flush(), px(line('cash').style.left)), px(cashLeft0 + 0.5 * W));
+
+// Cancel puts everything back the way the session found it.
+install(Object.assign({}, CFG, { layout: handed }));
+body.appendChild(editor); dom.mutate(editor); flush();
+dom.fire(line('cash'), 'mousedown', { clientX: 0, clientY: 0 });
+dom.fire(line('cash'), 'mousemove', { clientX: 300, clientY: 0 });
+dom.fire(line('cash'), 'mouseup', { clientX: 300, clientY: 0 });
+flush();
+check('moved during the session', px(line('cash').style.left), px(cashLeft0 + 312));
+dom.fire(btnCancel, 'click', {});
+body.removeChild(editor); dom.mutate(body); flush();
+check('back after Cancel', px(line('cash').style.left), px(cashLeft0 + 12));
+check('nothing handed over', window.__gtawOldHud.pull(), null);
+
+// Reset clears the old HUD's layout along with the game's, and that is kept too.
+body.appendChild(editor); dom.mutate(editor); flush();
+dom.fire(btnReset, 'click', {});
+flush();
+check('everything at rest again', px(line('cash').style.left), px(cashLeft0));
+check('the hidden block is back', line('footer').style.display, '');
+body.removeChild(editor); dom.mutate(body); flush();
+check('an empty layout is handed over, so the file is emptied', window.__gtawOldHud.pull(), '');
+
+// Closing with nothing changed hands nothing over.
+body.appendChild(editor); dom.mutate(editor); flush();
+body.removeChild(editor); dom.mutate(body); flush();
+check('an unchanged session is not written', window.__gtawOldHud.pull(), null);
+
+// The game's own layout may have moved the compass; the fallback anchor takes that out.
+compass.style.transform = 'translate(20px, 0px) scale(1.5)';
 compass._rect = { left: 315.2 + 20, top: 900, width: 54 * 1.5, height: 40 };
-dom.mutate(cashSlot); flush();
-check('the old cash figure follows the chip', px(line('cash').style.left), px(cashLeft0 + 12));
-check('down by the same amount', px(line('cash').style.top),
-      px(0.060 * H - 30 + 0.4123 * cap(0.8 * 1.25) - (cap(0.8 * 1.25) / 0.711) * 0.1305));
-check('and is drawn that much bigger', px(line('cash').style.fontSize), px(cap(0.8 * 1.25) / 0.711));
-check('the bank chip was not touched', px(line('bank').style.left), px(cashLeft0));
-check('the street follows the location bar', px(line('street').style.left), px(cardLeft0 - 0.025 * W + 0.045 * W - 8));
-check('the compass letter follows the compass', px(line('card').style.left), px(cardLeft0 + 20));
-check('the moved, enlarged compass still says where the minimap is',
+install(CFG);
+flush();
+check('a moved, enlarged compass still says where the minimap is',
       px(line('speed').style.left), px(299 + 0.006 * W));
-
-// A widget hidden in the editor is gone from the page while the rest of the HUD is there.
-hudBody.removeChild(brand);
-dom.mutate(hudBody); flush();
-check('the server line goes with the brand block', line('footer').style.display, 'none');
-hudBody.appendChild(brand);
-dom.mutate(hudBody); flush();
-check('and comes back with it', line('footer').style.display, '');
-
-// The editor closes: the toolbar goes.
-body.removeChild(editor);
-dom.mutate(body); flush();
-check('the current widgets are transparent again', hideStyle().disabled, false);
-check('the layout it saved still applies', px(line('cash').style.left), px(cashLeft0 + 12));
-
-// Mutations inside the old HUD itself are not re-read.
-const reads = dom.observers.length;
-dom.mutate(line('cash'));
-check('the observer is still the one', dom.observers.length, reads);
-
-// The big map takes the compass and the location down without hiding them.
-hudBody.removeChild(compass); hudBody.removeChild(locBar);
-post({ action: 'NUI::Hud::ToggleBigmap', data: { active: true } });
-post({ action: 'NUI::Hud::RadarRect',
-       data: { left: 20, top: 725, width: 325, height: 155, screenW: W, screenH: H } });
-dom.mutate(hudBody); flush();
-check('the street stays up under the big map', line('street').style.display, '');
-post({ action: 'NUI::Hud::ToggleBigmap', data: { active: false } });
-dom.mutate(hudBody); flush();
-check('and is hidden once the big map closes with the bar still gone', line('street').style.display, 'none');
-hudBody.appendChild(compass); hudBody.appendChild(locBar);
-cashSlot.style.transform = ''; locBar.style.transform = ''; compass.style.transform = '';
+compass.style.transform = '';
 compass._rect = { left: 315.2, top: 900, width: 54, height: 40 };
-for (const w of [cashSlot, bankSlot, locBar, compass, brand]) body.appendChild(w);
-body.removeChild(hudBody);
 install(CFG);
 flush();
 
@@ -561,6 +612,7 @@ check('root removed',   document.getElementById('gtaw-oldhud-root'), 'null');
 check('style removed',  document.getElementById('gtaw-oldhud-style'), 'null');
 check('hide rules removed', document.getElementById('gtaw-oldhud-hide'), 'null');
 check('observer disconnected', dom.observers.length, 0);
+check('editor click listener removed', (dom.docListeners.click || []).length, 0);
 check('global removed', window.__gtawOldHud, 'undefined');
 check('message listener removed', (dom.listeners.message || []).length, 0);
 check('resize listener removed',  (dom.listeners.resize  || []).length, 0);

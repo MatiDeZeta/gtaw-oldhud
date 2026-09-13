@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.1-8b5cf6?style=flat-square" alt="Version"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.1.0-8b5cf6?style=flat-square" alt="Version"></a>
   <a href="https://github.com/MatiDeZeta/gtaw-oldhud/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/MatiDeZeta/gtaw-oldhud/build.yml?style=flat-square&label=build" alt="Build"></a>
   <a href="https://github.com/MatiDeZeta/gtaw-oldhud/releases/latest"><img src="https://img.shields.io/github/downloads/MatiDeZeta/gtaw-oldhud/total?style=flat-square&color=22c55e" alt="Downloads"></a>
   <a href="https://fivem.net/"><img src="https://img.shields.io/badge/FiveM-.asi_plugin-f40552?style=flat-square" alt="FiveM"></a>
@@ -57,7 +57,7 @@
 3. Launch FiveM and join GTA World. The old HUD appears as soon as the game's HUD is up.
 4. Leave GTAW's own `/settings` HUD toggles switched **on**. The plugin makes the current widgets transparent rather than removing them, and that is what keeps their data flowing.
 
-On first run the plugin writes `gtaw-oldhud.settings.txt` next to itself — every option listed, explained and set to its default — and `gtaw-oldhud.log`, recording every connection attempt, install and failure.
+On first run the plugin writes `gtaw-oldhud.settings.txt` next to itself — every option listed, explained and set to its default — and `gtaw-oldhud.log`, recording every connection attempt, install and failure. `gtaw-oldhud.layout.txt` appears once the old HUD has been placed with [`/hudlayout`](#the-layout-editor).
 
 > [**ⓘ**](#settings) Set `hide_new = none` to see both HUDs at once, which is handy for lining things up.
 
@@ -78,7 +78,7 @@ GTA World replaced its HUD. Some of us preferred the old one — the plain white
 6. **No dependencies** — WinHTTP and a 300-line JSON reader, fuzzed under ASan and UBSan
 7. **Reproducible builds** with signed provenance on every release
 8. **Everything is a setting** — units, names, colours, weight, scale, which parts to draw and which current widgets to hide
-9. **Placed with `/hudlayout`** — the game's own layout editor moves, scales and hides the old lines along with the current widgets they stand in for, and the game keeps the result
+9. **Placed with `/hudlayout`** — inside the game's own layout editor the old HUD's blocks are dragged, scaled and hidden like any other widget; the result is kept next to the plugin
 
 ### How it works
 
@@ -199,22 +199,11 @@ There are **no per-line size or position settings**. The old HUD's geometry is w
 
 ### The layout editor
 
-`/hudlayout` places the old HUD too. The editor works on the current HUD's widgets — drag one, scroll to scale it, click its × to hide it — and the game keeps the result between sessions. Whatever it does to a widget, the plugin does to the old lines that stand in for it:
+`/hudlayout` places the old HUD. The game's editor works on its own widgets — drag, scroll to scale, click the × to hide — and while it is open the old HUD's blocks can be taken hold of the same way, with the same dashed outline, the same wheel, the same cross, and the editor's grid snapping when Snap is on. Seven blocks move as one each: cash, bank, the duty lines, the ELS state, the location block (compass, area and street), the vehicle block (speed, fuel, mileage and the aviation line) and the server line. Blocks that are not up at the time — the vehicle block on foot, the ELS state, the duty lines — are drawn while the editor is open so they can be placed.
 
-| Widget in the editor | Old HUD lines that follow it |
-|---|---|
-| Cash chip | Cash |
-| Bank chip | Bank |
-| Status icons (`tips`) | `Admin-Duty`, `Tester-Duty` |
-| Compass | The compass letter and its dividers |
-| Location bar | Area and street |
-| Server block | The server line |
+**Save** and **Escape** keep what was done, **Cancel** puts it back, and the editor's **Reset** clears the old HUD's layout along with the current one's. A hidden block is drawn faded inside the editor so it can be found and brought back with its cross.
 
-While the editor is open the current widgets are shown again so there is something to take hold of, and the old lines move with them as you drag. Save, and the plugin reads the outcome straight off the page from then on — it never writes to the editor and never sends anything, so the layout lives where the game keeps it. Hiding a widget hides its old lines; the editor's **Reset** brings everything back.
-
-The speedometer is placed by a different mechanism and the old vehicle block is docked to the minimap regardless, so it is not part of this; `dock_x` and `dock_y` nudge that block.
-
-The plugin never overwrites an existing settings file. If yours was written by an older version, delete it once to pick up new defaults.
+The result is kept in `gtaw-oldhud.layout.txt` next to the plugin — one line per block that is not at rest, as fractions of the screen so it holds at any resolution. The game's own layout lives on the server, per account; the old HUD cannot be registered there and the plugin never sends anything, so this one is per machine. The plugin reads it off the page through the same heartbeat that checks the HUD is still there, and validates every line before writing.
 
 ### The font
 

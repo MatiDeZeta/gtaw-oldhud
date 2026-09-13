@@ -72,6 +72,14 @@ run_settings() {
 }
 step "the settings file" run_settings
 
+run_layout() {
+  mkdir -p "$OUT/layout"
+  g++ "${CXXFLAGS[@]}" "$SRC/core/layout.cpp" "$SRC/core/util.cpp" \
+      layout_test.cpp stub_win32.cpp -o "$OUT/layout_test" || return 1
+  "$OUT/layout_test" "$OUT/layout"
+}
+step "the layout file" run_layout
+
 run_logger() {
   mkdir -p "$OUT/logger"
   g++ "${CXXFLAGS[@]}" "$SRC/core/logger.cpp" "$SRC/core/util.cpp" \
@@ -105,7 +113,7 @@ step "the injected HUD script" run_payload
 
 run_generated() {
   g++ "${CXXFLAGS[@]}" "$SRC/hud/payload.cpp" "$SRC/hud/font.cpp" "$SRC/core/settings.cpp" \
-      "$SRC/core/util.cpp" "$SRC/cdp/json.cpp" payload_dump.cpp stub_win32.cpp \
+      "$SRC/core/layout.cpp" "$SRC/core/util.cpp" "$SRC/cdp/json.cpp" payload_dump.cpp stub_win32.cpp \
       -o "$OUT/payload_dump" || return 1
   "$OUT/payload_dump" > "$OUT/install.js" || return 1
   echo "  generated $(wc -c < "$OUT/install.js") bytes"

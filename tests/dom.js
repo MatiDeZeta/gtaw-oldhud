@@ -28,6 +28,12 @@ class El {
   }
   descendants() { let o = []; for (const c of this.childNodes) { o.push(c); o = o.concat(c.descendants()); } return o; }
   contains(n) { for (let x = n; x; x = x.parentNode) if (x === this) return true; return false; }
+  addEventListener(type, fn) { (this._listeners = this._listeners || {}); (this._listeners[type] = this._listeners[type] || []).push(fn); }
+  removeEventListener(type, fn) {
+    const a = (this._listeners && this._listeners[type]) || [];
+    const i = a.indexOf(fn);
+    if (i >= 0) a.splice(i, 1);
+  }
 
   // Canvas text metrics, which the payload uses to find the font size that draws capitals a
   // wanted number of pixels tall. The ratios are Roboto Condensed's, one of the faces the
@@ -74,8 +80,15 @@ const body = new El('body');
 documentRoot.appendChild(head);
 documentRoot.appendChild(body);
 
+const docListeners = {};
 const document = {
   documentElement: documentRoot, head, body,
+  addEventListener(type, fn) { (docListeners[type] = docListeners[type] || []).push(fn); },
+  removeEventListener(type, fn) {
+    const a = docListeners[type] || [];
+    const i = a.indexOf(fn);
+    if (i >= 0) a.splice(i, 1);
+  },
   createElement: (tag) => new El(tag),
   getElementById(id) { return documentRoot.descendants().find(e => e.id === id) || null; },
   // Supports one class/tag/id selector, or two separated by a descendant combinator, which is
@@ -108,6 +121,18 @@ const window = {
 };
 
 function flush() { const q = rafQueue; rafQueue = []; q.forEach(fn => fn(0)); }
+
+// Delivers a DOM event the way a browser would: capture listeners on the document first, then
+// the target and its ancestors, then the window. Enough for the layout editor's mouse work.
+function fire(target, type, init) {
+  const ev = Object.assign({ type, target, button: 0, clientX: 0, clientY: 0, deltaY: 0,
+                             preventDefault() {}, stopPropagation() {} }, init || {});
+  for (const fn of (docListeners[type] || []).slice()) fn(ev);
+  for (let n = target; n; n = n.parentNode)
+    for (const fn of ((n._listeners && n._listeners[type]) || []).slice()) fn(ev);
+  for (const fn of (listeners[type] || []).slice()) fn(ev);
+  return ev;
+}
 
 // A movable clock, so a test can look at what the HUD draws five seconds later without waiting
 // five seconds. Only Date.now moves; the payload re-decides what to show on every render, and a
@@ -155,4 +180,5 @@ global.document = document;
 global.MutationObserver = MutationObserver;
 
 module.exports = { El, window, document, body, head, flush, post, postLikeGtaw, widget, listeners,
-                   setFontMetrics, setFontProbe, advanceClock, resetClock, mutate, observers };
+                   setFontMetrics, setFontProbe, advanceClock, resetClock, mutate, observers,
+                   fire, docListeners };

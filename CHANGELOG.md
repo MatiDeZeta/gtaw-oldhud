@@ -1,14 +1,17 @@
 # Changelog
 
-## v1.0.1
+## v1.1.0
 
-- **`/hudlayout` places the old HUD.** The game's layout editor drags, scales and hides the
-  current HUD's widgets and keeps the result between sessions; the plugin now reads that
-  outcome off the widgets themselves and applies it to the old lines that stand in for them:
-  cash, bank, the status icons (the duty lines), the compass, the location bar and the server
-  block. While the editor is open the current widgets are shown again so there is something to
-  drag, and the old lines follow live. Before, the plugin's transparency rule also stopped those
-  widgets being dragged at all.
+- **`/hudlayout` places the old HUD itself.** While the game's layout editor is open the old
+  HUD's blocks — cash, bank, the duty lines, the ELS state, the location block, the vehicle
+  block and the server line — are outlined and can be dragged, scaled with the wheel and hidden
+  with their cross, the same as the current widgets, with the editor's snapping when Snap is on.
+  Save and Escape keep it, Cancel puts it back, Reset clears it. The result is kept in
+  `gtaw-oldhud.layout.txt` next to the plugin, read off the page through the heartbeat and
+  validated before it is written; nothing is sent. This replaces 1.0.1's arrangement, where the
+  old lines followed the current widgets around instead.
+
+## v1.0.1
 
 - **The location block no longer runs off the bottom of the screen.** The minimap rectangle the
   game reports runs down to the bottom of the safe zone, and at the default safe zone that is the

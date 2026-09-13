@@ -8,8 +8,9 @@ namespace hud {
 // it tears down anything it left behind first.
 std::string buildInstallScript();
 
-// Cheap liveness check for the supervisor. Returns true while the HUD is installed, and
-// re-attaches the root if something removed it from the page.
+// Cheap liveness check for the supervisor. Evaluates to "" when the HUD is gone, "ok" while it
+// is installed (re-attaching the root if something removed it from the page), and "ok" followed
+// by a newline and a layout when the game's layout editor changed where the old HUD sits.
 std::string buildProbeScript();
 
 }  // namespace hud
