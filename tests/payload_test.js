@@ -370,6 +370,20 @@ check('bank at 0.100 down', px(line('bank').style.top), px(0.100 * H + 0.4123 * 
 check('the server line is centred', px(line('footer').style.left), W / 2);
 check('35/1080 of the height up',  px(line('footer').style.top), px(H * (1 - 35 / 1080) + 0.4123 * cap(0.45) - (cap(0.45) / 0.711) * 0.1305));
 
+section('a long balance is kept clear of the right screen edge');
+// 13/1920 of the width is the margin the game leaves. A balance whose right edge runs past it
+// slides left by the overshoot; one that already clears it stays where it is.
+line('cash')._rect = { left: 1500, top: 0, width: 200, height: 20 };
+post({ action: 'HUD::SET_STATE', data: { cash: 123456789 } });
+flush();
+check('the overshoot is taken off the left edge', px(line('cash').style.left),
+      px(W * (1 - 70 / 1920) - (1700 - (W - 13 * W / 1920))));
+line('cash')._rect = { left: 1500, top: 0, width: 50, height: 20 };
+post({ action: 'HUD::SET_STATE', data: { cash: 250 } });
+flush();
+check('a balance that fits is not moved', px(line('cash').style.left), px(W * (1 - 70 / 1920)));
+line('cash')._rect = null;
+
 section('the game\'s nudge moves the whole HUD, as it does the current one');
 post({ action: 'NUI::Hud::Offset', data: { x: 0.1, y: -0.02 } });
 flush();

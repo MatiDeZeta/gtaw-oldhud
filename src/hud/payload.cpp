@@ -870,6 +870,15 @@ const char* kScript = R"JS(function (CFG) {
     node.style.top  = (y + CELL_TO_CAP * capPx - f.topToCap) + 'px';
   }
 
+  // The balances are centred on one point, so a long one spills toward the screen edge. The game
+  // keeps a margin there; slide such a line left until it does.
+  var MONEY_MARGIN = 13 / 1920;
+  function keepInside(node, W) {
+    if (!node.getBoundingClientRect) return;
+    var over = node.getBoundingClientRect().right - (W - MONEY_MARGIN * W);
+    if (over > 0) node.style.left = (parseFloat(node.style.left) - over) + 'px';
+  }
+
   function render() {
     pending = false;
 
@@ -891,6 +900,7 @@ const char* kScript = R"JS(function (CFG) {
     setText(bankEl, money_(hud.bank));
     place(cashEl, moneyX + lc.dx, CASH_Y * H + lc.dy, CASH_SCALE * lc.s);
     place(bankEl, moneyX + lb.dx, BANK_Y * H + lb.dy, BANK_SCALE * lb.s);
+    keepInside(cashEl, W); keepInside(bankEl, W);
     show(cashEl, CFG.showCash);
     show(bankEl, CFG.showBank);
 
