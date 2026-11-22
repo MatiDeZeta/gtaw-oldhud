@@ -1040,7 +1040,8 @@ const char* kScript = R"JS(function (CFG) {
     show(aviEl,    inVehicle && CFG.showAviation && (!!spd.isPlane || editing));
     show(speedEl,  inVehicle && CFG.showSpeed);
     show(fuelEl,   inVehicle && CFG.showFuel && (pct !== null || editing));
-    show(sdivEl,   inVehicle && (CFG.showSpeed || CFG.showOdometer || CFG.showFuel));
+    // The thin line to the left of the compass letter is never drawn.
+    show(sdivEl,   false);
     show(odoEl,    inVehicle && CFG.showOdometer && ((odo !== null && odo > ODO_MIN && odo < ODO_MAX) || editing));
     put(aviEl, lv); put(speedEl, lv); put(fuelEl, lv); put(sdivEl, ll); put(odoEl, lv);
 
