@@ -323,9 +323,9 @@ const char* kScript = R"JS(function (CFG) {
     odo:    { x: 0.006, y: 0.085, s: 0.8 },
     sdiv:   { x: 0.005, y: 0.045, s: 1.0 },
     card:   { x: 0.025, y: 0.046, s: 1.0 },
-    cdiv:   { x: 0.038, y: 0.045, s: 1.0 },
-    zone:   { x: 0.045, y: 0.040, s: 0.5 },
-    street: { x: 0.045, y: 0.016, s: 0.4 }
+    cdiv:   { x: 0.0398, y: 0.0476, s: 0.9688 },
+    zone:   { x: 0.04604, y: 0.03907, s: 0.5 },
+    street: { x: 0.04604, y: 0.01507, s: 0.4 }
   };
 
   // Cap height of the game's HUD face, as a fraction of the screen height per unit of text
@@ -346,11 +346,11 @@ const char* kScript = R"JS(function (CFG) {
   var DOCK_FLOOR = 0.985;
 
   // Balances and the server line were positioned against the screen, not the minimap: the
-  // balances centred 70px in from the right edge and the server line 35px up from the bottom,
+  // balances centred 70px in from the right edge and the server line 33px up from the bottom,
   // both at 1920 by 1080 and both scaling with the screen, as the game's own text does.
-  var CASH_Y = 0.060, BANK_Y = 0.100, ADMIN_Y = 0.140, TESTER_Y = 0.175;
-  var MONEY_X = 1 - 70 / 1920, FOOTER_Y = 1 - 35 / 1080;
-  var CASH_SCALE = 0.8, BANK_SCALE = 0.7, STAFF_SCALE = 0.5, FOOTER_SCALE = 0.45;
+  var CASH_Y = 0.0591, BANK_Y = 0.0991, ADMIN_Y = 0.140, TESTER_Y = 0.175;
+  var MONEY_X = 1 - 70 / 1920, FOOTER_Y = 1 - 33 / 1080;
+  var CASH_SCALE = 0.856, BANK_SCALE = 0.75, STAFF_SCALE = 0.5, FOOTER_SCALE = 0.45;
 
   // The ELS state sat 0.18 of the screen above the minimap's bottom edge, over on the right with
   // the balances, as two lines: the word ELS and the state under it.
