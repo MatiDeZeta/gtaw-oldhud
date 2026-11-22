@@ -455,6 +455,7 @@ const char* kScript = R"JS(function (CFG) {
   var fuelRed   = part(fuelEl, 'ohud-r');
   var fuelOrg   = part(fuelEl, 'ohud-o');
   var fuelGrn   = part(fuelEl, 'ohud-g');
+  fuelEl._bars  = [fuelRed, fuelOrg, fuelGrn];
 
   var odoEl    = line(L.odo);
   var sdivEl   = line(L.sdiv);
@@ -720,7 +721,7 @@ const char* kScript = R"JS(function (CFG) {
       if (!(cap > 0) || !(asc > 0) || !(desc >= 0)) return null;
       // With line-height 1 the half leading is (1em - (ascent + descent)) / 2, which is how far
       // the baseline sits below the top of the box.
-      return { cap: cap, topToCap: (size - (asc + desc)) / 2 + asc - cap };
+      return { cap: cap, topToCap: (size - (asc + desc)) / 2 + asc - cap, asc: asc, desc: desc };
     } catch (e) { return null; }
   }
 
@@ -771,6 +772,7 @@ const char* kScript = R"JS(function (CFG) {
 
     var size = capPx / FALLBACK_CAP;
     var topToCap = size * FALLBACK_TOP;
+    var metrics = null;
 
     var c = measurer();
     if (c) {
@@ -778,11 +780,12 @@ const char* kScript = R"JS(function (CFG) {
       if (first) {
         size = size * capPx / first.cap;          // cap height is linear in the font size
         var second = probe(c, size);
+        metrics = second || first;
         topToCap = second ? second.topToCap : size * FALLBACK_TOP;
       }
     }
 
-    fontCache[key] = { size: size, topToCap: topToCap };
+    fontCache[key] = { size: size, topToCap: topToCap, m: metrics };
     return fontCache[key];
   }
 
@@ -868,6 +871,19 @@ const char* kScript = R"JS(function (CFG) {
     node.style.fontSize = f.size + 'px';
     node.style.left = x + 'px';
     node.style.top  = (y + CELL_TO_CAP * capPx - f.topToCap) + 'px';
+    trim(node, f, capPx);
+  }
+
+  // The vertical bar reaches below the baseline in most faces, and further up than the text it
+  // sits beside. The old HUD's fuel bars ran exactly from the baseline to the cap line of the word
+  // in front of them, so the ink is clipped to match. Without canvas metrics the bars are left as
+  // the face draws them.
+  function trim(node, f, capPx) {
+    var m = f.m;
+    if (!node._bars || !m) return;
+    // The cap line is the font's ascent less the cap height; the baseline is its descent up.
+    var clip = 'inset(' + Math.max(0, m.asc - capPx) + 'px -4px ' + m.desc + 'px -4px)';
+    for (var i = 0; i < node._bars.length; i++) node._bars[i].style.clipPath = clip;
   }
 
   // The balances are centred on one point, so a long one spills toward the screen edge. The game

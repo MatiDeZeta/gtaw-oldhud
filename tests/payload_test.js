@@ -108,6 +108,16 @@ check('empty', fuelBar(), 'Fuel EMPTY');
 post({ action: 'NUI::Speedometer::State', data: { fuel: 48, maxFuel: 60 } }); flush();
 check('a smaller tank is still a percentage', fuelBar(), 'Fuel ||||||||');
 
+section('the fuel bars run from the baseline to the cap line of the word');
+// Clipped to the content area between the cap line and the baseline; the stub font puts the
+// ascent at 0.927 em and the descent at 0.244 em.
+const clipOf = (n) => (/inset\(([-\d.]+)px [-\d.]+px ([-\d.]+)px/.exec(n.style.clipPath) || []).slice(1).map(Number);
+const fsize = cap0(0.8) / 0.711;
+const [clipTop, clipBottom] = clipOf(line('fuel').childNodes[1]);
+check('trimmed at the cap line',  px(clipTop),    px(0.927 * fsize - cap0(0.8)));
+check('trimmed at the baseline',  px(clipBottom), px(0.244 * fsize));
+check('every bar part is trimmed alike', clipOf(line('fuel').childNodes[3]).join(), [clipTop, clipBottom].join());
+
 section('a fuel reading that has not arrived is not drawn as a guess');
 install(CFG);
 post({ action: 'NUI::Speedometer::Show' });
