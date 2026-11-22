@@ -118,7 +118,7 @@ check('street',   text('street'), 'Brouge Avenue / Carson Avenue');
 check('speed',    text('speed'), 'MPH 0');
 check('fuel',     text('fuel'), 'Fuel |||||||||');
 check('odometer', text('odo'), '1.08 mi.');
-check('footer',   text('footer'), 'GTA.WORLD — Roleplay v1.8.8a — 188/1500 — 14:07');
+check('footer',   text('footer'), 'GTA.WORLD – Roleplay v1.8.8a – 188/1500 – 14:07');
 
 section('and places it where the old HUD placed it');
 // At or above 1920 wide the old HUD kept measuring the balance inset against 1920.

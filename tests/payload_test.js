@@ -74,7 +74,7 @@ check('zone',    text('zone'), 'Davis');
 check('street',  text('street'), 'Brouge Avenue / Carson Avenue');
 check('the compass letter is not seeded, it is localised', text('card'), '');
 check('unknown compass is hidden', line('card').style.display, 'none');
-check('footer', text('footer'), 'GTA.WORLD — Roleplay v3.8.2 — 188/1500 — 14:07');
+check('footer', text('footer'), 'GTA.WORLD – Roleplay v3.8.2 – 188/1500 – 14:07');
 
 section('the old HUD text, not the current HUD text');
 post({ action: 'HUD::SET_STATE', data: { cardinal: 'N' } });
@@ -245,7 +245,7 @@ post({ action: 'NUI::Global::Batch', data: [
 flush();
 check('cash after double delivery', text('cash'), '$1,000');
 check('version updates without a duplicate v',
-      text('footer'), 'GTA.WORLD — Roleplay v3.8.3 — 188/1500 — 14:07');
+      text('footer'), 'GTA.WORLD – Roleplay v3.8.3 – 188/1500 – 14:07');
 
 section('leaving the vehicle');
 post({ action: 'NUI::Speedometer::Hide' });
@@ -435,7 +435,7 @@ section('the parts can be switched off');
 install(Object.assign({}, CFG, { showPlayers: false, showTime: false }));
 post({ action: 'HUD::SET_STATE', data: { version: '1.8.8a', players: 188, time: '14:07' } });
 flush();
-check('a short server line', text('footer'), 'GTA.WORLD — Roleplay v1.8.8a');
+check('a short server line', text('footer'), 'GTA.WORLD – Roleplay v1.8.8a');
 
 section('the weight reaches the measurement, not just the stylesheet');
 let seenFont = '';

@@ -936,11 +936,11 @@ const char* kScript = R"JS(function (CFG) {
     var tail = '';
     // The old HUD wrote both counts plainly, with no thousands separator.
     if (CFG.showPlayers && players !== null)
-      tail += ' \u2014 ' + Math.round(players) + '/' + CFG.maxPlayers;
-    if (CFG.showTime && time) tail += ' \u2014 ' + time;
+      tail += ' \u2013 ' + Math.round(players) + '/' + CFG.maxPlayers;
+    if (CFG.showTime && time) tail += ' \u2013 ' + time;
 
     var lf = adj('footer');
-    fServer.textContent = CFG.serverName + ' \u2014 ';
+    fServer.textContent = CFG.serverName + ' \u2013 ';
     fMode.textContent   = CFG.gamemodeName + (version ? ' v' + version : '');
     fTail.textContent   = tail;
     place(footEl, W / 2 + lf.dx, FOOTER_Y * H + lf.dy, FOOTER_SCALE * lf.s);

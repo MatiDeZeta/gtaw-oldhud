@@ -39,7 +39,7 @@
    └──────────────┘ | S | Pillbox Hill
                         Elgin Ave
 
-           GTA.WORLD — Roleplay v1.8.8a — 188/1500 — 14:07
+           GTA.WORLD – Roleplay v1.8.8a – 188/1500 – 14:07
 ```
 
 </details>
