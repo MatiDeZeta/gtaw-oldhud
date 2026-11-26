@@ -323,9 +323,9 @@ const char* kScript = R"JS(function (CFG) {
     odo:    { x: 0.006, y: 0.085, s: 0.8 },
     sdiv:   { x: 0.005, y: 0.045, s: 1.0 },
     card:   { x: 0.025, y: 0.046, s: 1.0 },
-    cdiv:   { x: 0.038, y: 0.045, s: 1.0 },
-    zone:   { x: 0.045, y: 0.040, s: 0.5 },
-    street: { x: 0.045, y: 0.016, s: 0.4 }
+    cdiv:   { x: 0.0398, y: 0.0476, s: 0.9688 },
+    zone:   { x: 0.04604, y: 0.03907, s: 0.5 },
+    street: { x: 0.04604, y: 0.01507, s: 0.4 }
   };
 
   // Cap height of the game's HUD face, as a fraction of the screen height per unit of text
@@ -346,11 +346,11 @@ const char* kScript = R"JS(function (CFG) {
   var DOCK_FLOOR = 0.985;
 
   // Balances and the server line were positioned against the screen, not the minimap: the
-  // balances centred 70px in from the right edge and the server line 35px up from the bottom,
+  // balances centred 70px in from the right edge and the server line 33px up from the bottom,
   // both at 1920 by 1080 and both scaling with the screen, as the game's own text does.
-  var CASH_Y = 0.060, BANK_Y = 0.100, ADMIN_Y = 0.140, TESTER_Y = 0.175;
-  var MONEY_X = 1 - 70 / 1920, FOOTER_Y = 1 - 35 / 1080;
-  var CASH_SCALE = 0.8, BANK_SCALE = 0.7, STAFF_SCALE = 0.5, FOOTER_SCALE = 0.45;
+  var CASH_Y = 0.0591, BANK_Y = 0.0991, ADMIN_Y = 0.140, TESTER_Y = 0.175;
+  var MONEY_X = 1 - 70 / 1920, FOOTER_Y = 1 - 33 / 1080;
+  var CASH_SCALE = 0.856, BANK_SCALE = 0.75, STAFF_SCALE = 0.5, FOOTER_SCALE = 0.45;
 
   // The ELS state sat 0.18 of the screen above the minimap's bottom edge, over on the right with
   // the balances, as two lines: the word ELS and the state under it.
@@ -455,6 +455,7 @@ const char* kScript = R"JS(function (CFG) {
   var fuelRed   = part(fuelEl, 'ohud-r');
   var fuelOrg   = part(fuelEl, 'ohud-o');
   var fuelGrn   = part(fuelEl, 'ohud-g');
+  fuelEl._bars  = [fuelRed, fuelOrg, fuelGrn];
 
   var odoEl    = line(L.odo);
   var sdivEl   = line(L.sdiv);
@@ -720,7 +721,7 @@ const char* kScript = R"JS(function (CFG) {
       if (!(cap > 0) || !(asc > 0) || !(desc >= 0)) return null;
       // With line-height 1 the half leading is (1em - (ascent + descent)) / 2, which is how far
       // the baseline sits below the top of the box.
-      return { cap: cap, topToCap: (size - (asc + desc)) / 2 + asc - cap };
+      return { cap: cap, topToCap: (size - (asc + desc)) / 2 + asc - cap, asc: asc, desc: desc };
     } catch (e) { return null; }
   }
 
@@ -771,6 +772,7 @@ const char* kScript = R"JS(function (CFG) {
 
     var size = capPx / FALLBACK_CAP;
     var topToCap = size * FALLBACK_TOP;
+    var metrics = null;
 
     var c = measurer();
     if (c) {
@@ -778,11 +780,12 @@ const char* kScript = R"JS(function (CFG) {
       if (first) {
         size = size * capPx / first.cap;          // cap height is linear in the font size
         var second = probe(c, size);
+        metrics = second || first;
         topToCap = second ? second.topToCap : size * FALLBACK_TOP;
       }
     }
 
-    fontCache[key] = { size: size, topToCap: topToCap };
+    fontCache[key] = { size: size, topToCap: topToCap, m: metrics };
     return fontCache[key];
   }
 
@@ -868,6 +871,28 @@ const char* kScript = R"JS(function (CFG) {
     node.style.fontSize = f.size + 'px';
     node.style.left = x + 'px';
     node.style.top  = (y + CELL_TO_CAP * capPx - f.topToCap) + 'px';
+    trim(node, f, capPx);
+  }
+
+  // The vertical bar reaches below the baseline in most faces, and further up than the text it
+  // sits beside. The old HUD's fuel bars ran exactly from the baseline to the cap line of the word
+  // in front of them, so the ink is clipped to match. Without canvas metrics the bars are left as
+  // the face draws them.
+  function trim(node, f, capPx) {
+    var m = f.m;
+    if (!node._bars || !m) return;
+    // The cap line is the font's ascent less the cap height; the baseline is its descent up.
+    var clip = 'inset(' + Math.max(0, m.asc - capPx) + 'px -4px ' + m.desc + 'px -4px)';
+    for (var i = 0; i < node._bars.length; i++) node._bars[i].style.clipPath = clip;
+  }
+
+  // The balances are centred on one point, so a long one spills toward the screen edge. The game
+  // keeps a margin there; slide such a line left until it does.
+  var MONEY_MARGIN = 13 / 1920;
+  function keepInside(node, W) {
+    if (!node.getBoundingClientRect) return;
+    var over = node.getBoundingClientRect().right - (W - MONEY_MARGIN * W);
+    if (over > 0) node.style.left = (parseFloat(node.style.left) - over) + 'px';
   }
 
   function render() {
@@ -891,6 +916,7 @@ const char* kScript = R"JS(function (CFG) {
     setText(bankEl, money_(hud.bank));
     place(cashEl, moneyX + lc.dx, CASH_Y * H + lc.dy, CASH_SCALE * lc.s);
     place(bankEl, moneyX + lb.dx, BANK_Y * H + lb.dy, BANK_SCALE * lb.s);
+    keepInside(cashEl, W); keepInside(bankEl, W);
     show(cashEl, CFG.showCash);
     show(bankEl, CFG.showBank);
 
@@ -926,11 +952,11 @@ const char* kScript = R"JS(function (CFG) {
     var tail = '';
     // The old HUD wrote both counts plainly, with no thousands separator.
     if (CFG.showPlayers && players !== null)
-      tail += ' \u2014 ' + Math.round(players) + '/' + CFG.maxPlayers;
-    if (CFG.showTime && time) tail += ' \u2014 ' + time;
+      tail += ' \u2013 ' + Math.round(players) + '/' + CFG.maxPlayers;
+    if (CFG.showTime && time) tail += ' \u2013 ' + time;
 
     var lf = adj('footer');
-    fServer.textContent = CFG.serverName + ' \u2014 ';
+    fServer.textContent = CFG.serverName + ' \u2013 ';
     fMode.textContent   = CFG.gamemodeName + (version ? ' v' + version : '');
     fTail.textContent   = tail;
     place(footEl, W / 2 + lf.dx, FOOTER_Y * H + lf.dy, FOOTER_SCALE * lf.s);
@@ -1030,7 +1056,8 @@ const char* kScript = R"JS(function (CFG) {
     show(aviEl,    inVehicle && CFG.showAviation && (!!spd.isPlane || editing));
     show(speedEl,  inVehicle && CFG.showSpeed);
     show(fuelEl,   inVehicle && CFG.showFuel && (pct !== null || editing));
-    show(sdivEl,   inVehicle && (CFG.showSpeed || CFG.showOdometer || CFG.showFuel));
+    // The thin line to the left of the compass letter is never drawn.
+    show(sdivEl,   false);
     show(odoEl,    inVehicle && CFG.showOdometer && ((odo !== null && odo > ODO_MIN && odo < ODO_MAX) || editing));
     put(aviEl, lv); put(speedEl, lv); put(fuelEl, lv); put(sdivEl, ll); put(odoEl, lv);
 

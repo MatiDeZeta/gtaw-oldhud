@@ -33,7 +33,7 @@ struct Settings
     // the initial values and the compass can still be measured for docking.
     std::string hideNew = "cash,bank,location,compass,brand,speedo,weather,tips,minimapbar,speedsign";
 
-    // The bottom line reads "<server> — <gamemode> v<version> — <players>/<max> — <clock>".
+    // The bottom line reads "<server> – <gamemode> v<version> – <players>/<max> – <clock>".
     std::string serverName   = "GTA.WORLD";
     std::string gamemodeName = "Roleplay";
     int         maxPlayers   = 1500;
